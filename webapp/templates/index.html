@@ -139,6 +139,21 @@
         </div>
     </div>
 
+    <!-- Dry Run Modal -->
+    <div id="dry-run-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div id="dry-run-content" class="p-6">
+                <div class="flex items-center justify-center py-12">
+                    <svg class="animate-spin h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="ml-3 text-gray-400">Running dry run...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         function showTab(tab) {
             ['jobs', 'browser', 'issues', 'logs'].forEach(t => {
@@ -209,14 +224,173 @@
             }
         }
 
+        function closeDryRunModal() {
+            document.getElementById('dry-run-modal').classList.add('hidden');
+        }
+
+        async function runDryRun(jobId) {
+            // Show modal with loading spinner
+            document.getElementById('dry-run-modal').classList.remove('hidden');
+            document.getElementById('dry-run-content').innerHTML = `
+                <div class="flex items-center justify-center py-12">
+                    <svg class="animate-spin h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="ml-3 text-gray-400">Running dry run...</span>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/v1/jobs/${jobId}/dry-run`, { method: 'POST' });
+                const result = await response.json();
+
+                if (!response.ok) {
+                    document.getElementById('dry-run-content').innerHTML = `
+                        <div class="p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-xl font-semibold text-red-400">Dry Run Failed</h2>
+                                <button onclick="closeDryRunModal()" class="text-gray-400 hover:text-white">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <p class="text-red-300">${result.detail || 'Unknown error'}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Format bytes
+                const formatBytes = (bytes) => {
+                    if (bytes < 1024) return bytes + ' B';
+                    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                    if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+                    return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+                };
+
+                // Build file list HTML
+                let filesHtml = '';
+                if (result.files && result.files.length > 0) {
+                    filesHtml = result.files.map(f => {
+                        const icon = f.is_dir ? '📁' : '📄';
+                        const actionClass = f.action === 'delete' ? 'text-red-400' : (f.action === 'update' ? 'text-yellow-400' : 'text-green-400');
+                        const actionLabel = f.action === 'delete' ? 'DELETE' : (f.action === 'update' ? 'UPDATE' : 'NEW');
+                        return `<tr class="border-t border-gray-700">
+                            <td class="py-1 px-2">${icon}</td>
+                            <td class="py-1 px-2 text-sm truncate max-w-md" title="${f.path}">${f.path}</td>
+                            <td class="py-1 px-2 text-sm text-gray-400">${f.is_dir ? '-' : formatBytes(f.size)}</td>
+                            <td class="py-1 px-2 text-sm ${actionClass}">${actionLabel}</td>
+                        </tr>`;
+                    }).join('');
+                }
+
+                document.getElementById('dry-run-content').innerHTML = `
+                    <div class="p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-semibold">Dry Run Results: ${result.job_name}</h2>
+                            <button onclick="closeDryRunModal()" class="text-gray-400 hover:text-white">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="text-sm text-gray-400 mb-4">
+                            <span class="font-mono">${result.source_path}</span> → <span class="font-mono">${result.dest_path}</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                            <div class="bg-gray-700 rounded-lg p-4 text-center">
+                                <div class="text-2xl font-bold text-green-400">${result.files_to_transfer}</div>
+                                <div class="text-sm text-gray-400">Files to Transfer</div>
+                            </div>
+                            <div class="bg-gray-700 rounded-lg p-4 text-center">
+                                <div class="text-2xl font-bold text-blue-400">${formatBytes(result.bytes_to_transfer)}</div>
+                                <div class="text-sm text-gray-400">Data to Transfer</div>
+                            </div>
+                            <div class="bg-gray-700 rounded-lg p-4 text-center">
+                                <div class="text-2xl font-bold text-red-400">${result.files_to_delete}</div>
+                                <div class="text-sm text-gray-400">Files to Delete</div>
+                            </div>
+                            <div class="bg-gray-700 rounded-lg p-4 text-center">
+                                <div class="text-2xl font-bold text-yellow-400">${result.filename_issues}</div>
+                                <div class="text-sm text-gray-400">Filename Issues</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-750 rounded-lg p-3 mb-4 text-sm">
+                            <span class="text-gray-400">Source:</span> ${result.total_source_files} files (${formatBytes(result.total_source_bytes)})
+                        </div>
+
+                        ${result.errors && result.errors.length > 0 ? `
+                            <div class="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-4">
+                                <div class="text-red-400 font-medium mb-2">Errors:</div>
+                                <ul class="text-sm text-red-300 list-disc list-inside">
+                                    ${result.errors.map(e => `<li>${e}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+
+                        ${filesHtml ? `
+                            <div class="mb-4">
+                                <h3 class="font-medium mb-2">Files (${result.files.length}${result.files.length >= 500 ? '+ truncated' : ''}):</h3>
+                                <div class="bg-gray-900 rounded-lg max-h-64 overflow-y-auto">
+                                    <table class="w-full text-left">
+                                        <thead class="bg-gray-800 sticky top-0">
+                                            <tr>
+                                                <th class="py-2 px-2 w-8"></th>
+                                                <th class="py-2 px-2">Path</th>
+                                                <th class="py-2 px-2 w-24">Size</th>
+                                                <th class="py-2 px-2 w-20">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>${filesHtml}</tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ` : '<p class="text-gray-400">No files to transfer - destination is up to date.</p>'}
+
+                        <div class="flex justify-end space-x-3 mt-6">
+                            <button onclick="closeDryRunModal()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                document.getElementById('dry-run-content').innerHTML = `
+                    <div class="p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-semibold text-red-400">Dry Run Failed</h2>
+                            <button onclick="closeDryRunModal()" class="text-gray-400 hover:text-white">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="text-red-300">${err.message}</p>
+                    </div>
+                `;
+            }
+        }
+
         // Close modal on escape key
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') closeModal();
+            if (e.key === 'Escape') {
+                closeModal();
+                closeDryRunModal();
+            }
         });
 
         // Close modal on backdrop click
         document.getElementById('modal').addEventListener('click', function(e) {
             if (e.target === this) closeModal();
+        });
+
+        document.getElementById('dry-run-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeDryRunModal();
         });
     </script>
 </body>

@@ -176,3 +176,28 @@ class FilenameIssuesSummary(BaseModel):
     skipped: int = 0
     failed: int = 0
     issues: list[FilenameIssue] = []
+
+
+class DryRunFile(BaseModel):
+    """A file that would be transferred in a dry run."""
+    path: str
+    size: int = 0
+    is_dir: bool = False
+    action: str = "transfer"  # transfer, delete, update
+
+
+class DryRunResult(BaseModel):
+    """Result of a dry run sync operation."""
+    job_id: str
+    job_name: str
+    source_path: str
+    dest_path: str
+    files_to_transfer: int = 0
+    files_to_delete: int = 0
+    bytes_to_transfer: int = 0
+    total_source_files: int = 0
+    total_source_bytes: int = 0
+    filename_issues: int = 0
+    files: list[DryRunFile] = []
+    errors: list[str] = []
+    completed_at: datetime = Field(default_factory=datetime.utcnow)

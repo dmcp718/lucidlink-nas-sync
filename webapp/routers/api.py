@@ -14,6 +14,7 @@ from webapp.models.sync_job import (
     BrowseResponse,
     FilenameIssue,
     FilenameIssuesSummary,
+    DryRunResult,
 )
 from webapp.services.file_browser import file_browser
 from webapp.services.sync_manager import sync_manager
@@ -91,6 +92,15 @@ async def stop_job(job_id: str):
     if not success:
         raise HTTPException(status_code=400, detail=message)
     return {"status": "stopped", "message": message}
+
+
+@router.post("/jobs/{job_id}/dry-run", response_model=DryRunResult)
+async def dry_run_job(job_id: str):
+    """Run a dry run of a sync job to preview what would be transferred."""
+    success, result = await sync_manager.dry_run_job(job_id)
+    if not success:
+        raise HTTPException(status_code=400, detail=result)
+    return result
 
 
 @router.get("/jobs/{job_id}/progress", response_model=Optional[SyncProgress])

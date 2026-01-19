@@ -31,6 +31,9 @@ class SyncManager:
     def __init__(self):
         self.jobs: dict[str, SyncJob] = {}
         self.running_processes: dict[str, asyncio.subprocess.Process] = {}
+        self.running_tasks: dict[str, list[asyncio.Task]] = {}  # Track worker tasks
+        self.worker_processes: dict[str, list[asyncio.subprocess.Process]] = {}  # Track worker subprocesses
+        self.stop_requested: dict[str, bool] = {}  # Track stop requests
         self.progress: dict[str, SyncProgress] = {}
         self._progress_callbacks: list = []
 
@@ -150,21 +153,61 @@ class SyncManager:
         return True, "Job started"
 
     async def stop_job(self, job_id: str) -> tuple[bool, str]:
-        """Stop a running sync job."""
+        """Stop a running sync job with graceful shutdown of all workers."""
         if job_id not in self.running_processes:
             return False, "Job is not running"
 
+        # Signal stop request
+        self.stop_requested[job_id] = True
+
+        # Update progress to show stopping
+        if job_id in self.progress:
+            self.progress[job_id].current_file = "Stopping..."
+            for worker in self.progress[job_id].workers:
+                if worker.status == "running":
+                    worker.status = "stopping"
+            await self._notify_progress(job_id, self.progress[job_id])
+
         try:
-            process = self.running_processes[job_id]
-            process.terminate()
-            await asyncio.wait_for(process.wait(), timeout=10.0)
-        except asyncio.TimeoutError:
-            process.kill()
+            # Terminate all worker subprocesses
+            if job_id in self.worker_processes:
+                for proc in self.worker_processes[job_id]:
+                    try:
+                        if proc.returncode is None:  # Still running
+                            proc.terminate()
+                    except Exception:
+                        pass
+
+                # Wait for processes to terminate gracefully
+                for proc in self.worker_processes[job_id]:
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=5.0)
+                    except asyncio.TimeoutError:
+                        try:
+                            proc.kill()
+                        except Exception:
+                            pass
+
+            # Cancel worker tasks
+            if job_id in self.running_tasks:
+                for task in self.running_tasks[job_id]:
+                    if not task.done():
+                        task.cancel()
+                # Wait for tasks to complete cancellation
+                await asyncio.gather(*self.running_tasks[job_id], return_exceptions=True)
+
         except Exception as e:
-            return False, f"Error stopping job: {e}"
+            print(f"Error during job stop: {e}")
         finally:
+            # Clean up tracking dicts
             if job_id in self.running_processes:
                 del self.running_processes[job_id]
+            if job_id in self.running_tasks:
+                del self.running_tasks[job_id]
+            if job_id in self.worker_processes:
+                del self.worker_processes[job_id]
+            if job_id in self.stop_requested:
+                del self.stop_requested[job_id]
 
         # Update status
         job = self.jobs.get(job_id)
@@ -176,9 +219,140 @@ class SyncManager:
 
         if job_id in self.progress:
             self.progress[job_id].status = JobStatus.STOPPED
+            self.progress[job_id].current_file = "Stopped"
+            for worker in self.progress[job_id].workers:
+                if worker.status in ("running", "stopping"):
+                    worker.status = "stopped"
             await self._notify_progress(job_id, self.progress[job_id])
 
         return True, "Job stopped"
+
+    async def dry_run_job(self, job_id: str) -> tuple[bool, any]:
+        """Run a dry run of a sync job to preview what would be transferred."""
+        from webapp.models.sync_job import DryRunResult, DryRunFile
+
+        job = self.jobs.get(job_id)
+        if not job:
+            return False, "Job not found"
+
+        if job_id in self.running_processes:
+            return False, "Job is currently running"
+
+        source = job.source_path.rstrip("/")
+        dest = job.dest_path.rstrip("/")
+
+        # Verify source exists
+        if not os.path.exists(source):
+            return False, f"Source path does not exist: {source}"
+
+        # Get source stats
+        total_files, total_bytes = self._get_source_stats(source, job.exclude_patterns)
+
+        # Check for filename issues
+        issue_count = await self._preflight_check_filenames(
+            job_id, job.name, source, job.exclude_patterns
+        )
+
+        # Build rsync command with --dry-run and itemize
+        rsync_opts = job.rsync_options.split()
+        # Add dry-run and itemize flags
+        rsync_opts = [opt for opt in rsync_opts if opt not in ['--dry-run', '-n', '--itemize-changes', '-i']]
+        rsync_opts.extend(['--dry-run', '--itemize-changes'])
+        for pattern in job.exclude_patterns:
+            rsync_opts.extend(["--exclude", pattern])
+
+        cmd = ["rsync"] + rsync_opts + [source + "/", dest + "/"]
+
+        files_to_transfer = []
+        errors = []
+        bytes_to_transfer = 0
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            stdout, stderr = await process.communicate()
+
+            # Parse stdout for file list
+            # rsync --itemize-changes output format:
+            # >f+++++++++ path/to/file (new file to transfer)
+            # >f.st...... path/to/file (file to update)
+            # cd+++++++++ path/to/dir/ (new directory)
+            # *deleting   path/to/file (file to delete)
+            for line in stdout.decode().split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Parse itemize format
+                if len(line) > 11 and line[0] in '>c*':
+                    action_code = line[:11]
+                    filepath = line[12:] if len(line) > 12 else ""
+
+                    if not filepath:
+                        continue
+
+                    is_dir = action_code[1] == 'd'
+                    is_delete = line.startswith('*deleting')
+
+                    if is_delete:
+                        action = "delete"
+                        filepath = line.split(None, 1)[1] if ' ' in line else ""
+                    elif '+' in action_code:
+                        action = "transfer"
+                    else:
+                        action = "update"
+
+                    # Get file size if it's a transfer/update
+                    file_size = 0
+                    if not is_delete and not is_dir:
+                        full_path = os.path.join(source, filepath)
+                        try:
+                            if os.path.exists(full_path):
+                                file_size = os.path.getsize(full_path)
+                                bytes_to_transfer += file_size
+                        except (OSError, PermissionError):
+                            pass
+
+                    files_to_transfer.append(DryRunFile(
+                        path=filepath,
+                        size=file_size,
+                        is_dir=is_dir,
+                        action=action
+                    ))
+
+            # Parse stderr for errors
+            for line in stderr.decode().split('\n'):
+                line = line.strip()
+                if line and ('error' in line.lower() or 'rsync:' in line.lower()):
+                    errors.append(line)
+
+        except Exception as e:
+            return False, f"Dry run failed: {e}"
+
+        # Build result
+        transfer_count = sum(1 for f in files_to_transfer if f.action in ('transfer', 'update') and not f.is_dir)
+        delete_count = sum(1 for f in files_to_transfer if f.action == 'delete')
+
+        result = DryRunResult(
+            job_id=job_id,
+            job_name=job.name,
+            source_path=source,
+            dest_path=dest,
+            files_to_transfer=transfer_count,
+            files_to_delete=delete_count,
+            bytes_to_transfer=bytes_to_transfer,
+            total_source_files=total_files,
+            total_source_bytes=total_bytes,
+            filename_issues=issue_count,
+            files=files_to_transfer[:500],  # Limit to first 500 files
+            errors=errors,
+        )
+
+        return True, result
 
     def _get_source_stats(self, source_path: str, exclude_patterns: list[str]) -> tuple[int, int]:
         """Calculate total files and bytes in source directory."""
@@ -412,6 +586,12 @@ class SyncManager:
         files_done = 0
 
         for item_name, item_files, item_bytes in items:
+            # Check for stop request before each item
+            if self.stop_requested.get(job_id):
+                worker.status = "stopped"
+                worker.current_file = None
+                break
+
             item_source = os.path.join(source, item_name)
             worker.current_file = item_name
 
@@ -428,32 +608,70 @@ class SyncManager:
                     stderr=asyncio.subprocess.STDOUT,
                 )
 
-                while True:
-                    line = await process.stdout.readline()
-                    if not line:
-                        break
-                    line_text = line.decode().strip()
-                    if line_text.startswith("rsync:") or line_text.startswith("rsync error:"):
-                        error_lines.append(f"[Worker {worker_id}] {line_text}")
+                # Track this process for potential termination
+                if job_id in self.worker_processes:
+                    self.worker_processes[job_id].append(process)
 
-                await process.wait()
+                try:
+                    while True:
+                        # Check for stop request during execution
+                        if self.stop_requested.get(job_id):
+                            process.terminate()
+                            await asyncio.wait_for(process.wait(), timeout=5.0)
+                            worker.status = "stopped"
+                            break
 
-                if process.returncode == 0:
-                    files_done += item_files
-                    worker.files_transferred = files_done
-                    # Update overall progress
-                    progress.files_transferred = sum(w.files_transferred for w in progress.workers)
-                    if progress.files_total > 0:
-                        progress.percent_complete = (progress.files_transferred / progress.files_total) * 100
-                    progress.updated_at = datetime.utcnow()
-                    await self._notify_progress(job_id, progress)
-                else:
-                    error_lines.append(f"[Worker {worker_id}] Failed to sync {item_name}: exit code {process.returncode}")
+                        try:
+                            line = await asyncio.wait_for(process.stdout.readline(), timeout=1.0)
+                            if not line:
+                                break
+                            line_text = line.decode().strip()
+                            if line_text.startswith("rsync:") or line_text.startswith("rsync error:"):
+                                error_lines.append(f"[Worker {worker_id}] {line_text}")
+                        except asyncio.TimeoutError:
+                            # Just a timeout, continue checking
+                            if process.returncode is not None:
+                                break
+                            continue
 
+                    if not self.stop_requested.get(job_id):
+                        await process.wait()
+
+                        if process.returncode == 0:
+                            files_done += item_files
+                            worker.files_transferred = files_done
+                            # Update overall progress
+                            progress.files_transferred = sum(w.files_transferred for w in progress.workers)
+                            if progress.files_total > 0:
+                                progress.percent_complete = (progress.files_transferred / progress.files_total) * 100
+                            progress.updated_at = datetime.utcnow()
+                            await self._notify_progress(job_id, progress)
+                        elif process.returncode != -15:  # -15 is SIGTERM
+                            error_lines.append(f"[Worker {worker_id}] Failed to sync {item_name}: exit code {process.returncode}")
+
+                except asyncio.CancelledError:
+                    # Task was cancelled, terminate process
+                    if process.returncode is None:
+                        process.terminate()
+                        try:
+                            await asyncio.wait_for(process.wait(), timeout=5.0)
+                        except asyncio.TimeoutError:
+                            process.kill()
+                    raise
+
+            except asyncio.CancelledError:
+                worker.status = "stopped"
+                raise
             except Exception as e:
                 error_lines.append(f"[Worker {worker_id}] Error syncing {item_name}: {e}")
 
-        worker.status = "completed" if not error_lines else "failed"
+            # Check stop again after item completion
+            if self.stop_requested.get(job_id):
+                worker.status = "stopped"
+                break
+
+        if worker.status != "stopped":
+            worker.status = "completed" if not error_lines else "failed"
         worker.current_file = None
         progress.active_workers = sum(1 for w in progress.workers if w.status == "running")
         return files_done, error_lines
@@ -539,12 +757,19 @@ class SyncManager:
             progress.updated_at = datetime.utcnow()
             await self._notify_progress(job_id, progress)
 
+            # Initialize tracking for graceful shutdown
+            self.running_processes[job_id] = True  # Mark as running
+            self.worker_processes[job_id] = []  # Track subprocess objects
+            self.stop_requested[job_id] = False  # Reset stop flag
+
             # Run workers in parallel
-            self.running_processes[job_id] = True  # Mark as running (not a real process)
             tasks = [
-                self._run_worker(i, worker_items[i], source, dest, rsync_opts, progress, job_id)
+                asyncio.create_task(
+                    self._run_worker(i, worker_items[i], source, dest, rsync_opts, progress, job_id)
+                )
                 for i in range(num_workers)
             ]
+            self.running_tasks[job_id] = tasks  # Track tasks for cancellation
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             # Aggregate results
@@ -612,8 +837,15 @@ class SyncManager:
                 self.progress[job_id].error_message = str(e)
 
         finally:
+            # Clean up all tracking dictionaries
             if job_id in self.running_processes:
                 del self.running_processes[job_id]
+            if job_id in self.running_tasks:
+                del self.running_tasks[job_id]
+            if job_id in self.worker_processes:
+                del self.worker_processes[job_id]
+            if job_id in self.stop_requested:
+                del self.stop_requested[job_id]
             await self.save_jobs()
             if job_id in self.progress:
                 await self._notify_progress(job_id, self.progress[job_id])
