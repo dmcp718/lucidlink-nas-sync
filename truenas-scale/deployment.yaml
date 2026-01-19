@@ -1,0 +1,171 @@
+# Kubernetes deployment manifest for TrueNAS SCALE
+# This can be used with TrueNAS SCALE's Custom App feature
+# or deployed via kubectl if you have direct cluster access
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lucidlink-sync
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: lucidlink-credentials
+  namespace: lucidlink-sync
+type: Opaque
+stringData:
+  # Replace with your actual credentials
+  LUCIDLINK_FILESPACE: "your-filespace.domain"
+  LUCIDLINK_USER: "your-username"
+  LUCIDLINK_PASSWORD: "your-password"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sync-config
+  namespace: lucidlink-sync
+data:
+  SYNC_DIRECTION: "local-to-filespace"
+  SYNC_INTERVAL: "300"
+  PARALLEL_JOBS: "4"
+  RSYNC_OPTIONS: "-avz --progress"
+  SYNC_EXCLUDE: ".DS_Store,Thumbs.db,*.tmp"
+  WEBUI_ENABLED: "true"
+  WEBUI_PORT: "8080"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lucidlink-sync
+  namespace: lucidlink-sync
+  labels:
+    app: lucidlink-sync
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lucidlink-sync
+  template:
+    metadata:
+      labels:
+        app: lucidlink-sync
+    spec:
+      containers:
+      - name: lucidlink-sync
+        image: lucidlink-sync:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - SYS_ADMIN
+              - MKNOD
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: LUCIDLINK_FILESPACE
+          valueFrom:
+            secretKeyRef:
+              name: lucidlink-credentials
+              key: LUCIDLINK_FILESPACE
+        - name: LUCIDLINK_USER
+          valueFrom:
+            secretKeyRef:
+              name: lucidlink-credentials
+              key: LUCIDLINK_USER
+        - name: LUCIDLINK_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: lucidlink-credentials
+              key: LUCIDLINK_PASSWORD
+        - name: LUCIDLINK_MOUNT_POINT
+          value: "/data/filespace"
+        - name: LOCAL_DATA_PATH
+          value: "/data/local"
+        envFrom:
+        - configMapRef:
+            name: sync-config
+        volumeMounts:
+        - name: fuse-device
+          mountPath: /dev/fuse
+        - name: local-data
+          mountPath: /data/local
+        - name: sync-logs
+          mountPath: /var/log/sync
+        - name: config
+          mountPath: /config
+        - name: cache
+          mountPath: /cache
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+      volumes:
+      - name: fuse-device
+        hostPath:
+          path: /dev/fuse
+          type: CharDevice
+      - name: local-data
+        hostPath:
+          # TrueNAS SCALE path to your data
+          path: /mnt/pool-z/data1/backup_misc
+          type: Directory
+      - name: sync-logs
+        emptyDir: {}
+      - name: config
+        persistentVolumeClaim:
+          claimName: lucidlink-sync-config
+      - name: cache
+        emptyDir: {}
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lucidlink-sync
+  namespace: lucidlink-sync
+  labels:
+    app: lucidlink-sync
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: lucidlink-sync
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lucidlink-sync-config
+  namespace: lucidlink-sync
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LucidLink Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .status-connected { background-color: #22c55e; }
+        .status-disconnected { background-color: #ef4444; }
+        .status-idle { background-color: #6b7280; }
+        .status-running { background-color: #3b82f6; animation: pulse 2s infinite; }
+        .status-completed { background-color: #22c55e; }
+        .status-failed { background-color: #ef4444; }
+        .status-stopped { background-color: #f59e0b; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <nav class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <h1 class="text-xl font-bold">LucidLink Sync</h1>
+            </div>
+            <div id="status-indicator" hx-get="/partials/status" hx-trigger="every 5s">
+                {% include 'partials/status.html' %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-6 py-8">
+        <!-- Tabs -->
+        <div class="flex space-x-6 border-b border-gray-700 mb-6">
+            <button onclick="showTab('jobs')" id="tab-jobs" class="pb-3 px-1 tab-active">Sync Jobs</button>
+            <button onclick="showTab('browser')" id="tab-browser" class="pb-3 px-1 text-gray-400 hover:text-gray-200">File Browser</button>
+            <button onclick="showTab('logs')" id="tab-logs" class="pb-3 px-1 text-gray-400 hover:text-gray-200">Logs</button>
+        </div>
+
+        <!-- Jobs Tab -->
+        <div id="content-jobs">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-semibold">Sync Jobs</h2>
+                <button
+                    hx-get="/jobs/new"
+                    hx-target="#modal-content"
+                    hx-swap="innerHTML"
+                    onclick="document.getElementById('modal').classList.remove('hidden')"
+                    class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    <span>New Job</span>
+                </button>
+            </div>
+
+            <div id="jobs-list" hx-get="/partials/jobs-list" hx-trigger="every 3s">
+                {% include 'partials/jobs_list.html' %}
+            </div>
+        </div>
+
+        <!-- Browser Tab -->
+        <div id="content-browser" class="hidden">
+            <div class="grid grid-cols-2 gap-6">
+                <div class="bg-gray-800 rounded-lg p-4">
+                    <h3 class="font-semibold mb-4 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                        </svg>
+                        Local Storage
+                    </h3>
+                    <div id="browser-local" hx-get="/partials/browser/local?path=" hx-trigger="load">
+                        Loading...
+                    </div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-4">
+                    <h3 class="font-semibold mb-4 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+                        </svg>
+                        LucidLink Filespace
+                    </h3>
+                    <div id="browser-filespace" hx-get="/partials/browser/filespace?path=" hx-trigger="load">
+                        Loading...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div id="content-logs" class="hidden">
+            <div class="bg-gray-800 rounded-lg p-4">
+                <div class="flex space-x-4 mb-4">
+                    <button onclick="loadLogs('container')" class="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600">Container</button>
+                    <button onclick="loadLogs('sync')" class="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600">Sync</button>
+                </div>
+                <div id="logs-content" hx-get="/partials/logs?log_type=container" hx-trigger="load">
+                    Loading...
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tab) {
+            ['jobs', 'browser', 'logs'].forEach(t => {
+                document.getElementById('content-' + t).classList.add('hidden');
+                document.getElementById('tab-' + t).classList.remove('tab-active');
+                document.getElementById('tab-' + t).classList.add('text-gray-400');
+            });
+            document.getElementById('content-' + tab).classList.remove('hidden');
+            document.getElementById('tab-' + tab).classList.add('tab-active');
+            document.getElementById('tab-' + tab).classList.remove('text-gray-400');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+        }
+
+        function loadLogs(type) {
+            htmx.ajax('GET', '/partials/logs?log_type=' + type, '#logs-content');
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // Close modal on backdrop click
+        document.getElementById('modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+    </script>
+</body>
+</html>

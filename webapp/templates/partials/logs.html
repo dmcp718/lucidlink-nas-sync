@@ -1,0 +1,13 @@
+<div class="space-y-2">
+    <div class="flex justify-between items-center mb-2">
+        <span class="text-sm text-gray-400">{{ log_type|capitalize }} Logs</span>
+        <button
+            hx-get="/partials/logs?log_type={{ log_type }}"
+            hx-target="#logs-content"
+            hx-swap="innerHTML"
+            class="text-sm text-blue-400 hover:text-blue-300">
+            Refresh
+        </button>
+    </div>
+    <pre class="bg-gray-900 p-4 rounded text-xs font-mono text-gray-300 max-h-96 overflow-y-auto whitespace-pre-wrap">{% if logs %}{{ logs }}{% else %}No logs available{% endif %}</pre>
+</div>

@@ -1,0 +1,150 @@
+<div class="p-6">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-xl font-semibold">{% if is_new %}Create New Job{% else %}Edit Job{% endif %}</h2>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-200">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+        </button>
+    </div>
+
+    <form
+        {% if is_new %}
+        hx-post="/api/v1/jobs"
+        {% else %}
+        hx-put="/api/v1/jobs/{{ job.id }}"
+        {% endif %}
+        hx-ext="json-enc"
+        hx-on::after-request="if(event.detail.successful) { closeModal(); htmx.ajax('GET', '/partials/jobs-list', '#jobs-list'); }"
+        class="space-y-4">
+
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Job Name</label>
+            <input
+                type="text"
+                name="name"
+                value="{{ job.name if job else '' }}"
+                required
+                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                placeholder="My Sync Job">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Source Path</label>
+                <input
+                    type="text"
+                    name="source_path"
+                    value="{{ job.source_path if job else '/data/local' }}"
+                    required
+                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                    placeholder="/data/local/folder">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Destination Path</label>
+                <input
+                    type="text"
+                    name="dest_path"
+                    value="{{ job.dest_path if job else '/data/filespace' }}"
+                    required
+                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                    placeholder="/data/filespace/folder">
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Sync Direction</label>
+            <select
+                name="direction"
+                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                <option value="local-to-filespace" {% if job and job.direction == 'local-to-filespace' %}selected{% endif %}>Local to Filespace (Upload)</option>
+                <option value="filespace-to-local" {% if job and job.direction == 'filespace-to-local' %}selected{% endif %}>Filespace to Local (Download)</option>
+                <option value="bidirectional" {% if job and job.direction == 'bidirectional' %}selected{% endif %}>Bidirectional</option>
+            </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Sync Interval (seconds)</label>
+                <input
+                    type="number"
+                    name="interval"
+                    value="{{ job.interval if job else 300 }}"
+                    min="0"
+                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                    placeholder="300">
+                <p class="text-xs text-gray-500 mt-1">Set to 0 for manual sync only</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Parallel Jobs</label>
+                <input
+                    type="number"
+                    name="parallel_jobs"
+                    value="{{ job.parallel_jobs if job else 4 }}"
+                    min="1"
+                    max="32"
+                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Rsync Options</label>
+            <input
+                type="text"
+                name="rsync_options"
+                value="{{ job.rsync_options if job else '-avz --progress' }}"
+                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                placeholder="-avz --progress">
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Exclude Patterns (one per line)</label>
+            <textarea
+                name="exclude_patterns_text"
+                rows="3"
+                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                placeholder="*.tmp&#10;.DS_Store&#10;Thumbs.db">{% if job and job.exclude_patterns %}{{ job.exclude_patterns | join('\n') }}{% endif %}</textarea>
+        </div>
+
+        <div class="flex items-center">
+            <input
+                type="checkbox"
+                name="enabled"
+                id="enabled"
+                {% if not job or job.enabled %}checked{% endif %}
+                class="w-4 h-4 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
+            <label for="enabled" class="ml-2 text-sm text-gray-300">Enabled</label>
+        </div>
+
+        <div class="flex justify-end space-x-3 pt-4 border-t border-gray-700">
+            <button
+                type="button"
+                onclick="closeModal()"
+                class="px-4 py-2 text-gray-400 hover:text-gray-200">
+                Cancel
+            </button>
+            <button
+                type="submit"
+                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg">
+                {% if is_new %}Create Job{% else %}Save Changes{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Convert exclude patterns textarea to array before submit
+    document.querySelector('form').addEventListener('htmx:configRequest', function(evt) {
+        const textarea = document.querySelector('[name="exclude_patterns_text"]');
+        if (textarea) {
+            const patterns = textarea.value.split('\n').filter(p => p.trim());
+            evt.detail.parameters.exclude_patterns = patterns;
+            delete evt.detail.parameters.exclude_patterns_text;
+        }
+        // Convert enabled checkbox to boolean
+        evt.detail.parameters.enabled = document.getElementById('enabled').checked;
+        // Convert numbers
+        evt.detail.parameters.interval = parseInt(evt.detail.parameters.interval) || 0;
+        evt.detail.parameters.parallel_jobs = parseInt(evt.detail.parameters.parallel_jobs) || 4;
+    });
+</script>

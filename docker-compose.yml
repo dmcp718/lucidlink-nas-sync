@@ -1,0 +1,67 @@
+# Docker Compose for local testing
+# Usage: docker compose up -d
+
+services:
+  lucidlink-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lucidlink-sync:latest
+    container_name: lucidlink-sync
+    privileged: true
+    cap_add:
+      - SYS_ADMIN
+      - MKNOD
+    devices:
+      - /dev/fuse:/dev/fuse
+    security_opt:
+      - apparmor:unconfined
+    ports:
+      # Web UI port
+      - "${WEBUI_PORT:-8080}:8080"
+    environment:
+      # Required - LucidLink credentials
+      - LUCIDLINK_FILESPACE=${LUCIDLINK_FILESPACE}
+      - LUCIDLINK_USER=${LUCIDLINK_USER}
+      - LUCIDLINK_PASSWORD=${LUCIDLINK_PASSWORD}
+
+      # Optional - Mount point (default: /data/filespace)
+      - LUCIDLINK_MOUNT_POINT=/data/filespace
+
+      # Optional - Local data path (default: /data/local)
+      - LOCAL_DATA_PATH=/data/local
+
+      # Sync configuration
+      # Options: local-to-filespace, filespace-to-local, bidirectional
+      - SYNC_DIRECTION=${SYNC_DIRECTION:-local-to-filespace}
+
+      # Sync interval in seconds (0 or "once" for single run)
+      - SYNC_INTERVAL=${SYNC_INTERVAL:-300}
+
+      # Number of parallel rsync jobs
+      - PARALLEL_JOBS=${PARALLEL_JOBS:-4}
+
+      # Rsync options
+      - RSYNC_OPTIONS=${RSYNC_OPTIONS:--avz --progress}
+
+      # Comma-separated exclude patterns
+      - SYNC_EXCLUDE=${SYNC_EXCLUDE:-.DS_Store,Thumbs.db,*.tmp}
+
+      # Web UI configuration
+      - WEBUI_ENABLED=${WEBUI_ENABLED:-true}
+      - WEBUI_PORT=8080
+
+    volumes:
+      # Mount your local data directory
+      - ./test-data:/data/local
+
+      # Persist sync logs
+      - ./logs:/var/log/sync
+
+      # Persist job configuration
+      - ./config:/config
+
+      # LucidLink cache storage
+      - ./cache:/cache
+
+    restart: unless-stopped

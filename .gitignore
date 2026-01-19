@@ -1,0 +1,25 @@
+# Environment files with secrets
+.env
+
+# Cache directory
+cache/
+config/
+
+# Test data
+test-data/
+
+# Logs
+logs/
+*.log
+
+# Docker
+.docker/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
