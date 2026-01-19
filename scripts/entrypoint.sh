@@ -45,10 +45,6 @@ log "  Filespace: $LUCIDLINK_FILESPACE"
 log "  User: $LUCIDLINK_USER"
 log "  Mount Point: $LUCIDLINK_MOUNT_POINT"
 log "  Local Data Path: $LOCAL_DATA_PATH"
-log "  Sync Direction: $SYNC_DIRECTION"
-log "  Sync Interval: ${SYNC_INTERVAL}s"
-log "  Parallel Jobs: $PARALLEL_JOBS"
-log "  Web UI Enabled: ${WEBUI_ENABLED:-true}"
 log "  Web UI Port: ${WEBUI_PORT:-8080}"
 
 # Start LucidLink daemon
@@ -131,24 +127,10 @@ cleanup() {
 
 trap cleanup SIGTERM SIGINT
 
-# Start sync loop or one-time sync
-if [ "$SYNC_INTERVAL" = "0" ] || [ "$SYNC_INTERVAL" = "once" ]; then
-    log "Running one-time sync..."
-    /scripts/sync.sh
-    log "One-time sync completed"
-
-    # If web UI is running, keep container alive
-    if [ -n "$WEBUI_PID" ]; then
-        log "Sync completed. Web UI is running, keeping container alive..."
-        wait $WEBUI_PID
-    fi
+# Keep container alive - all syncing is done through Web UI jobs
+log "Ready. Use Web UI to create and manage sync jobs."
+if [ -n "$WEBUI_PID" ]; then
+    wait $WEBUI_PID
 else
-    log "Starting sync loop (interval: ${SYNC_INTERVAL}s)..."
-    while true; do
-        log "Starting sync..."
-        /scripts/sync.sh
-        log "Sync completed. Sleeping for ${SYNC_INTERVAL}s..."
-        sleep "$SYNC_INTERVAL" &
-        wait $!
-    done
+    while true; do sleep 86400; done
 fi
