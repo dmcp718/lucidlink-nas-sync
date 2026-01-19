@@ -23,23 +23,35 @@
         <div class="grid grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-300 mb-1">Source Path</label>
-                <input
-                    type="text"
-                    id="job-source"
-                    value="{{ job.source_path if job else '/data/local' }}"
-                    required
-                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
-                    placeholder="/data/local/folder">
+                <div class="flex space-x-2">
+                    <input
+                        type="text"
+                        id="job-source"
+                        value="{{ job.source_path if job else '/data/local' }}"
+                        required
+                        class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                        placeholder="/data/local/folder">
+                    <button type="button" onclick="openPathPicker('source', 'local')"
+                            class="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm">
+                        Browse
+                    </button>
+                </div>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-300 mb-1">Destination Path</label>
-                <input
-                    type="text"
-                    id="job-dest"
-                    value="{{ job.dest_path if job else '/data/filespace' }}"
-                    required
-                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
-                    placeholder="/data/filespace/folder">
+                <div class="flex space-x-2">
+                    <input
+                        type="text"
+                        id="job-dest"
+                        value="{{ job.dest_path if job else '/data/filespace' }}"
+                        required
+                        class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                        placeholder="/data/filespace/folder">
+                    <button type="button" onclick="openPathPicker('dest', 'filespace')"
+                            class="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm">
+                        Browse
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -168,4 +180,118 @@ document.getElementById('job-form').addEventListener('submit', async function(e)
         document.getElementById('form-error').classList.remove('hidden');
     }
 });
+
+// Path Picker functionality
+let pickerTarget = null;  // 'source' or 'dest'
+let pickerLocation = 'local';
+let pickerCurrentPath = '';
+
+function openPathPicker(target, defaultLocation) {
+    pickerTarget = target;
+    pickerLocation = defaultLocation;
+    pickerCurrentPath = '';
+    document.getElementById('picker-target').textContent = target === 'source' ? 'Source' : 'Destination';
+    updatePickerLocationButtons();
+    document.getElementById('path-picker-modal').classList.remove('hidden');
+    loadPickerBrowser('');
+}
+
+function closePathPicker() {
+    document.getElementById('path-picker-modal').classList.add('hidden');
+}
+
+function switchPickerLocation(location) {
+    pickerLocation = location;
+    pickerCurrentPath = '';
+    updatePickerLocationButtons();
+    loadPickerBrowser('');
+}
+
+function updatePickerLocationButtons() {
+    const localBtn = document.getElementById('picker-local-btn');
+    const filespaceBtn = document.getElementById('picker-filespace-btn');
+
+    localBtn.className = pickerLocation === 'local'
+        ? 'px-3 py-1 bg-blue-600 rounded-lg text-sm'
+        : 'px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm';
+    filespaceBtn.className = pickerLocation === 'filespace'
+        ? 'px-3 py-1 bg-blue-600 rounded-lg text-sm'
+        : 'px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm';
+}
+
+function loadPickerBrowser(path) {
+    pickerCurrentPath = path;
+    const root = pickerLocation === 'local' ? '/data/local' : '/data/filespace';
+    document.getElementById('picker-selected-path').textContent = root + (path ? '/' + path : '');
+    clearPickerSelection();
+    htmx.ajax('GET', '/partials/path-picker/' + pickerLocation + '?path=' + encodeURIComponent(path), '#picker-browser-content');
+}
+
+function selectPickerFolder(path, element) {
+    pickerCurrentPath = path;
+    const root = pickerLocation === 'local' ? '/data/local' : '/data/filespace';
+    document.getElementById('picker-selected-path').textContent = root + (path ? '/' + path : '');
+
+    // Clear previous selection and highlight new one
+    clearPickerSelection();
+    if (element) {
+        element.classList.add('bg-blue-900');
+    }
+}
+
+function clearPickerSelection() {
+    const items = document.querySelectorAll('#picker-browser-content .picker-item');
+    items.forEach(item => item.classList.remove('bg-blue-900'));
+}
+
+function confirmPathSelection() {
+    const root = pickerLocation === 'local' ? '/data/local' : '/data/filespace';
+    const fullPath = root + (pickerCurrentPath ? '/' + pickerCurrentPath : '');
+    const field = pickerTarget === 'source' ? 'job-source' : 'job-dest';
+    document.getElementById(field).value = fullPath;
+    closePathPicker();
+}
 </script>
+
+<!-- Path Picker Modal -->
+<div id="path-picker-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-gray-800 rounded-lg p-4 max-w-lg w-full mx-4 shadow-xl">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Select <span id="picker-target">Source</span> Path</h3>
+            <button onclick="closePathPicker()" class="text-gray-400 hover:text-gray-200">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <div class="flex space-x-2 mb-4">
+            <button type="button" onclick="switchPickerLocation('local')" id="picker-local-btn"
+                    class="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm">
+                Local
+            </button>
+            <button type="button" onclick="switchPickerLocation('filespace')" id="picker-filespace-btn"
+                    class="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm">
+                Filespace
+            </button>
+        </div>
+
+        <div id="picker-browser-content" class="bg-gray-900 rounded-lg p-2 min-h-[200px] max-h-[300px] overflow-y-auto">
+            <!-- Browser content loads here via HTMX -->
+        </div>
+
+        <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-700">
+            <span id="picker-selected-path" class="text-sm text-gray-400 font-mono truncate max-w-[60%]">/data/local</span>
+            <div class="space-x-2">
+                <button type="button" onclick="closePathPicker()"
+                        class="px-3 py-2 text-gray-400 hover:text-gray-200 text-sm">
+                    Cancel
+                </button>
+                <button type="button" onclick="confirmPathSelection()"
+                        class="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm">
+                    Select
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

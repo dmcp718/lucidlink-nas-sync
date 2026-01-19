@@ -12,7 +12,9 @@
       "Bash(git config:*)",
       "Bash(for d in /home/mini-admin/mock-data/*/)",
       "Bash(python3:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(docker restart:*)",
+      "Bash(docker ps:*)"
     ]
   }
 }

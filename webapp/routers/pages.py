@@ -129,6 +129,29 @@ async def browser_partial(request: Request, location: str, path: str = ""):
     )
 
 
+@router.get("/partials/path-picker/{location}", response_class=HTMLResponse)
+async def path_picker_partial(request: Request, location: str, path: str = ""):
+    """HTMX partial for path picker (folders only)."""
+    if location == "local":
+        result = file_browser.browse_local(path)
+    elif location == "filespace":
+        result = file_browser.browse_filespace(path)
+    else:
+        return HTMLResponse(content="Invalid location", status_code=400)
+
+    # Filter to directories only
+    result.items = [item for item in result.items if item.is_dir]
+
+    return templates.TemplateResponse(
+        "partials/path_picker.html",
+        {
+            "request": request,
+            "location": location,
+            "result": result,
+        }
+    )
+
+
 @router.get("/partials/logs", response_class=HTMLResponse)
 async def logs_partial(request: Request, log_type: str = "container", lines: int = 100):
     """HTMX partial for log viewer."""
@@ -140,5 +163,21 @@ async def logs_partial(request: Request, log_type: str = "container", lines: int
             "request": request,
             "log_type": log_type,
             "logs": logs,
+        }
+    )
+
+
+@router.get("/partials/filename-issues", response_class=HTMLResponse)
+async def filename_issues_partial(request: Request):
+    """HTMX partial for filename issues list."""
+    from webapp.services.filename_issues import filename_issues_manager
+    issues = list(filename_issues_manager.issues.values())
+    # Sort: pending first, then by detected_at descending
+    issues.sort(key=lambda x: (x.status != 'pending', x.detected_at), reverse=True)
+    return templates.TemplateResponse(
+        "partials/filename_issues.html",
+        {
+            "request": request,
+            "issues": issues,
         }
     )

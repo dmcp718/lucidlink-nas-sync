@@ -38,20 +38,38 @@
                     {% if job.status == 'running' and progress %}
                     <div class="mt-2">
                         <div class="flex justify-between text-xs text-gray-400 mb-1">
-                            <span>{{ progress.files_transferred }} files</span>
+                            <span>{{ progress.files_transferred }}{% if progress.files_total > 0 %} / {{ progress.files_total }}{% endif %} files</span>
                             <span>{{ "%.1f"|format(progress.percent_complete) }}%</span>
                         </div>
+                        {% if progress.bytes_total > 0 %}
+                        <div class="text-xs text-gray-500 mb-1">
+                            {% if progress.bytes_total < 1024 * 1024 %}
+                            {{ "%.1f"|format(progress.bytes_total / 1024) }} KB total
+                            {% elif progress.bytes_total < 1024 * 1024 * 1024 %}
+                            {{ "%.1f"|format(progress.bytes_total / 1024 / 1024) }} MB total
+                            {% else %}
+                            {{ "%.2f"|format(progress.bytes_total / 1024 / 1024 / 1024) }} GB total
+                            {% endif %}
+                        </div>
+                        {% endif %}
                         <div class="w-full bg-gray-700 rounded-full h-2">
                             <div class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: {{ progress.percent_complete }}%"></div>
                         </div>
-                        {% if progress.current_file %}
-                        <div class="text-xs text-gray-500 mt-1 truncate" title="{{ progress.current_file }}">
-                            {{ progress.current_file | truncate(30) }}
+                        {% if progress.workers %}
+                        <div class="text-xs text-gray-500 mt-1">
+                            {{ progress.active_workers }} / {{ progress.workers|length }} workers active
                         </div>
-                        {% endif %}
-                        {% if progress.transfer_rate %}
-                        <div class="text-xs text-gray-400 mt-1">
-                            {{ progress.transfer_rate }} {% if progress.eta %} - ETA: {{ progress.eta }}{% endif %}
+                        <div class="mt-1 space-y-0.5">
+                            {% for worker in progress.workers %}
+                            <div class="flex items-center text-xs">
+                                <span class="w-3 h-3 rounded-full mr-1 {% if worker.status == 'running' %}bg-blue-500{% elif worker.status == 'completed' %}bg-green-500{% elif worker.status == 'failed' %}bg-red-500{% else %}bg-gray-600{% endif %}"></span>
+                                <span class="text-gray-500 w-8">W{{ worker.worker_id }}</span>
+                                <span class="text-gray-400 truncate" title="{{ worker.current_file or 'idle' }}">
+                                    {% if worker.current_file %}{{ worker.current_file | truncate(20) }}{% elif worker.status == 'completed' %}done{% else %}waiting{% endif %}
+                                </span>
+                                <span class="text-gray-600 ml-auto">{{ worker.files_transferred }}/{{ worker.files_total }}</span>
+                            </div>
+                            {% endfor %}
                         </div>
                         {% endif %}
                     </div>

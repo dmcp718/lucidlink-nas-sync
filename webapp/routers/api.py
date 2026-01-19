@@ -12,10 +12,13 @@ from webapp.models.sync_job import (
     SyncProgress,
     SystemStatus,
     BrowseResponse,
+    FilenameIssue,
+    FilenameIssuesSummary,
 )
 from webapp.services.file_browser import file_browser
 from webapp.services.sync_manager import sync_manager
 from webapp.services.log_streamer import log_streamer
+from webapp.services.filename_issues import filename_issues_manager
 
 router = APIRouter()
 
@@ -125,3 +128,55 @@ async def get_logs(
 async def get_available_logs():
     """Get list of available log files."""
     return log_streamer.get_available_logs()
+
+
+# Filename Issues endpoints
+@router.get("/filename-issues", response_model=list[FilenameIssue])
+async def list_all_filename_issues():
+    """List all filename issues across all jobs."""
+    return list(filename_issues_manager.issues.values())
+
+
+@router.get("/filename-issues/pending", response_model=list[FilenameIssue])
+async def list_pending_issues():
+    """List all pending filename issues."""
+    return filename_issues_manager.get_all_pending()
+
+
+@router.get("/jobs/{job_id}/filename-issues", response_model=FilenameIssuesSummary)
+async def get_job_filename_issues(job_id: str):
+    """Get filename issues summary for a specific job."""
+    return filename_issues_manager.get_summary_for_job(job_id)
+
+
+@router.post("/filename-issues/{issue_id}/rename")
+async def rename_file(issue_id: str, new_name: Optional[str] = None):
+    """Rename a file to fix a filename issue."""
+    success, message = await filename_issues_manager.rename_file(issue_id, new_name)
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    return {"status": "renamed", "message": message}
+
+
+@router.post("/filename-issues/{issue_id}/skip")
+async def skip_issue(issue_id: str):
+    """Mark a filename issue as skipped (won't be renamed)."""
+    success, message = await filename_issues_manager.skip_issue(issue_id)
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    return {"status": "skipped", "message": message}
+
+
+@router.post("/filename-issues/rename-all")
+async def rename_all_issues(job_id: Optional[str] = None):
+    """Rename all pending files (optionally for a specific job)."""
+    results = await filename_issues_manager.rename_all_pending(job_id)
+    return results
+
+
+@router.delete("/jobs/{job_id}/filename-issues")
+async def clear_job_filename_issues(job_id: str):
+    """Clear all filename issues for a job."""
+    await filename_issues_manager.clear_job_issues(job_id)
+    await filename_issues_manager.save()
+    return {"status": "cleared"}

@@ -25,6 +25,17 @@ class SyncDirection(str, Enum):
     BIDIRECTIONAL = "bidirectional"
 
 
+class WorkerProgress(BaseModel):
+    """Progress information for a single worker."""
+    worker_id: int
+    items: list[str] = []  # Items assigned to this worker
+    files_total: int = 0
+    files_transferred: int = 0
+    bytes_total: int = 0
+    current_file: Optional[str] = None
+    status: str = "pending"  # pending, running, completed, failed
+
+
 class SyncProgress(BaseModel):
     """Real-time progress information for a running sync job."""
     job_id: str
@@ -40,6 +51,9 @@ class SyncProgress(BaseModel):
     started_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     error_message: Optional[str] = None
+    # Worker distribution info
+    workers: list[WorkerProgress] = []
+    active_workers: int = 0
 
 
 class SyncJobBase(BaseModel):
@@ -134,3 +148,31 @@ class BrowseResponse(BaseModel):
     parent: Optional[str] = None
     items: list[FileInfo] = []
     error: Optional[str] = None
+
+
+class FilenameIssue(BaseModel):
+    """A filename with problematic characters that needs attention."""
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    job_id: str
+    job_name: str
+    source_path: str  # Full path to the file/directory
+    relative_path: str  # Path relative to job source
+    filename: str  # Just the filename
+    is_dir: bool = False
+    issue_type: str  # e.g., "colon", "trailing_space", "control_char", "too_long"
+    issue_char: Optional[str] = None  # The problematic character
+    suggested_name: Optional[str] = None  # Suggested normalized name
+    status: str = "pending"  # pending, renamed, skipped, failed
+    detected_at: datetime = Field(default_factory=datetime.utcnow)
+    resolved_at: Optional[datetime] = None
+
+
+class FilenameIssuesSummary(BaseModel):
+    """Summary of filename issues for a job."""
+    job_id: str
+    total_issues: int = 0
+    pending: int = 0
+    renamed: int = 0
+    skipped: int = 0
+    failed: int = 0
+    issues: list[FilenameIssue] = []

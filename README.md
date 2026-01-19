@@ -142,6 +142,73 @@ Logs are written to `/var/log/sync/`:
                     └─────────────────┘
 ```
 
+## Parallel Sync Algorithm
+
+The sync process uses parallel workers to maximize throughput. Here's how batches are created and distributed:
+
+### 1. Pre-scan Phase
+
+Before syncing, the system scans the source directory:
+- Counts total files and calculates total size
+- Identifies all top-level items (files and directories)
+- Calculates file count and byte size for each item
+
+### 2. Batch Distribution
+
+Items are distributed across workers using **greedy load balancing by size**:
+
+```
+Algorithm:
+1. Sort all top-level items by size (largest first)
+2. For each item:
+   - Find the worker with the smallest current load (total bytes)
+   - Assign the item to that worker
+3. Continue until all items are assigned
+```
+
+**Example:** 4 workers, 6 items with sizes [500MB, 300MB, 200MB, 150MB, 100MB, 50MB]
+
+```
+Step 1: Assign 500MB → Worker 0 (loads: [500, 0, 0, 0])
+Step 2: Assign 300MB → Worker 1 (loads: [500, 300, 0, 0])
+Step 3: Assign 200MB → Worker 2 (loads: [500, 300, 200, 0])
+Step 4: Assign 150MB → Worker 3 (loads: [500, 300, 200, 150])
+Step 5: Assign 100MB → Worker 3 (loads: [500, 300, 200, 250])
+Step 6: Assign 50MB  → Worker 2 (loads: [500, 300, 250, 250])
+
+Final distribution:
+  Worker 0: 500MB (1 item)
+  Worker 1: 300MB (1 item)
+  Worker 2: 250MB (2 items)
+  Worker 3: 250MB (2 items)
+```
+
+### 3. Worker Execution
+
+Each worker:
+- Receives its assigned items (directories or files)
+- Runs independent rsync processes for each item
+- Reports progress after completing each item
+- Errors are collected and logged per-worker
+
+### 4. Progress Tracking
+
+The UI displays:
+- **Total progress:** Files transferred / Total files
+- **Total size:** Calculated before sync starts
+- **Worker status:** Each worker shows its current item and progress
+- **Active workers:** Count of workers still running
+
+### Why Top-Level Distribution?
+
+Distributing at the top-level (rather than individual files) provides:
+- **Better rsync efficiency:** Each worker can use rsync's delta transfer within its items
+- **Reduced overhead:** Fewer rsync process startups
+- **Natural batching:** Directories are kept together, preserving locality
+- **Simpler progress tracking:** Progress updates per-item completion
+
+**Note:** If you have a single large directory with many files, consider organizing into subdirectories for better parallelization.
+
 ## TrueNAS SCALE Compatibility
 
 **Will LucidLink work in TrueNAS SCALE containers?**

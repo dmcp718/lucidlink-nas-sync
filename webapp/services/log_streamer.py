@@ -17,6 +17,7 @@ class LogStreamer:
         self.log_files = {
             "container": os.path.join(settings.log_path, "container.log"),
             "sync": os.path.join(settings.log_path, "sync.log"),
+            "errors": os.path.join(settings.log_path, "errors.log"),
         }
 
     async def get_logs(
