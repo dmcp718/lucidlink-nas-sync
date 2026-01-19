@@ -181,9 +181,14 @@ Click **Add** under Ports:
 
 | Field | Value |
 |-------|-------|
+| **Port Bind Mode** | `Publish port on the host for external access` |
 | **Container Port** | `8080` |
 | **Host Port** | `8080` |
 | **Protocol** | `TCP` |
+
+> **Port Bind Mode Options**:
+> - `Publish port on the host for external access` - Use this to access the Web UI from your network
+> - `Expose port for inter-container communication` - Only for container-to-container access
 
 #### Custom DNS Setup
 Leave all empty (use system defaults):
