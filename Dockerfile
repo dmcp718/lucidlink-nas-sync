@@ -1,7 +1,13 @@
 FROM debian:bookworm
 
+# Read version from VERSION file
+ARG APP_VERSION=1.0.0
+
 LABEL maintainer="LucidLink Sync Container"
 LABEL description="Container for syncing files between local storage and LucidLink filespace using parallel rsync"
+LABEL org.opencontainers.image.version="${APP_VERSION}"
+LABEL org.opencontainers.image.title="LucidLink NAS Sync"
+LABEL org.opencontainers.image.source="https://github.com/dmcp718/lucidlink-nas-sync"
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -48,6 +54,9 @@ COPY scripts/parallel-rsync.sh /scripts/parallel-rsync.sh
 
 # Copy web application
 COPY webapp /webapp
+
+# Copy version file
+COPY VERSION /webapp/VERSION
 
 # Make scripts executable
 RUN chmod +x /scripts/*.sh

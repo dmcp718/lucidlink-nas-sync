@@ -32,6 +32,8 @@ class WorkerProgress(BaseModel):
     files_total: int = 0
     files_transferred: int = 0
     bytes_total: int = 0
+    bytes_transferred: int = 0
+    transfer_rate: Optional[str] = None
     current_file: Optional[str] = None
     status: str = "pending"  # pending, running, completed, failed
 

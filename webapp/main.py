@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="LucidLink Sync",
     description="Web UI for managing LucidLink sync jobs",
-    version="1.0.0",
+    version=settings.app_version,
     lifespan=lifespan,
 )
 
@@ -46,6 +46,7 @@ async def health_check():
     """Health check endpoint for container orchestration."""
     return {
         "status": "healthy",
+        "version": settings.app_version,
         "webui_enabled": settings.webui_enabled,
         "lucidlink_mount": settings.lucidlink_mount_point,
         "local_path": settings.local_data_path,

@@ -2,7 +2,16 @@
 Application configuration from environment variables.
 """
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
+
+
+def get_version() -> str:
+    """Read version from VERSION file."""
+    version_file = Path(__file__).parent / "VERSION"
+    if version_file.exists():
+        return version_file.read_text().strip()
+    return "unknown"
 
 
 class Settings(BaseSettings):
@@ -29,6 +38,9 @@ class Settings(BaseSettings):
     config_path: str = "/config"
     jobs_file: str = "/config/jobs.json"
     log_path: str = "/var/log/sync"
+
+    # Version
+    app_version: str = get_version()
 
     class Config:
         env_file = ".env"

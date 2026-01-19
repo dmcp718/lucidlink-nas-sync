@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from webapp.config import settings
 from webapp.services.sync_manager import sync_manager
 from webapp.services.file_browser import file_browser
 
@@ -24,6 +25,7 @@ async def index(request: Request):
             "request": request,
             "status": status,
             "jobs": jobs,
+            "version": settings.app_version,
         }
     )
 

@@ -1,14 +1,14 @@
 {% if jobs %}
 <div class="bg-gray-800 rounded-lg overflow-hidden">
-    <table class="w-full">
+    <table class="w-full table-fixed">
         <thead class="bg-gray-700">
             <tr>
-                <th class="px-4 py-3 text-left text-sm font-medium">Name</th>
-                <th class="px-4 py-3 text-left text-sm font-medium">Direction</th>
-                <th class="px-4 py-3 text-left text-sm font-medium">Status</th>
-                <th class="px-4 py-3 text-left text-sm font-medium">Last Run</th>
-                <th class="px-4 py-3 text-left text-sm font-medium">Statistics</th>
-                <th class="px-4 py-3 text-right text-sm font-medium">Actions</th>
+                <th class="px-4 py-3 text-left text-sm font-medium w-1/5">Name</th>
+                <th class="px-4 py-3 text-left text-sm font-medium w-28">Direction</th>
+                <th class="px-4 py-3 text-left text-sm font-medium w-64">Status</th>
+                <th class="px-4 py-3 text-left text-sm font-medium w-32">Last Run</th>
+                <th class="px-4 py-3 text-left text-sm font-medium w-32">Statistics</th>
+                <th class="px-4 py-3 text-right text-sm font-medium w-36">Actions</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-gray-700">
@@ -29,17 +29,17 @@
                     <span class="text-purple-400">Bidirectional</span>
                     {% endif %}
                 </td>
-                <td class="px-4 py-3">
+                <td class="px-4 py-3 align-top">
                     {% set progress = progress_map.get(job.id) if progress_map else None %}
                     <span class="flex items-center space-x-2">
                         <span class="status-dot status-{{ job.status }}"></span>
-                        <span class="text-sm capitalize">{{ job.status }}</span>
+                        <span class="text-sm capitalize w-20">{{ job.status }}</span>
                     </span>
                     {% if job.status == 'running' and progress %}
                     <div class="mt-2">
-                        <div class="flex justify-between text-xs text-gray-400 mb-1">
-                            <span>{{ progress.files_transferred }}{% if progress.files_total > 0 %} / {{ progress.files_total }}{% endif %} files</span>
-                            <span>{{ "%.1f"|format(progress.percent_complete) }}%</span>
+                        <div class="flex justify-between text-xs text-gray-400 mb-1 font-mono">
+                            <span class="w-28 truncate">{{ progress.files_transferred }}{% if progress.files_total > 0 %}/{{ progress.files_total }}{% endif %} files</span>
+                            <span class="w-12 text-right">{{ "%.1f"|format(progress.percent_complete) }}%</span>
                         </div>
                         {% if progress.bytes_total > 0 %}
                         <div class="text-xs text-gray-500 mb-1">
@@ -61,13 +61,13 @@
                         </div>
                         <div class="mt-1 space-y-0.5">
                             {% for worker in progress.workers %}
-                            <div class="flex items-center text-xs">
-                                <span class="w-3 h-3 rounded-full mr-1 {% if worker.status == 'running' %}bg-blue-500{% elif worker.status == 'completed' %}bg-green-500{% elif worker.status == 'failed' %}bg-red-500{% elif worker.status == 'stopping' %}bg-yellow-500 animate-pulse{% elif worker.status == 'stopped' %}bg-orange-500{% else %}bg-gray-600{% endif %}"></span>
-                                <span class="text-gray-500 w-8">W{{ worker.worker_id }}</span>
-                                <span class="text-gray-400 truncate" title="{{ worker.current_file or 'idle' }}">
-                                    {% if worker.status == 'stopping' %}stopping...{% elif worker.status == 'stopped' %}stopped{% elif worker.current_file %}{{ worker.current_file | truncate(20) }}{% elif worker.status == 'completed' %}done{% else %}waiting{% endif %}
+                            <div class="flex items-center text-xs font-mono">
+                                <span class="w-3 h-3 rounded-full mr-1 flex-shrink-0 {% if worker.status == 'running' %}bg-blue-500{% elif worker.status == 'completed' %}bg-green-500{% elif worker.status == 'failed' %}bg-red-500{% elif worker.status == 'stopping' %}bg-yellow-500 animate-pulse{% elif worker.status == 'stopped' %}bg-orange-500{% else %}bg-gray-600{% endif %}"></span>
+                                <span class="text-gray-500 w-6 flex-shrink-0">W{{ worker.worker_id }}</span>
+                                <span class="text-gray-400 w-24 truncate flex-shrink-0" title="{{ worker.current_file or 'idle' }}">
+                                    {% if worker.status == 'stopping' %}stopping{% elif worker.status == 'stopped' %}stopped{% elif worker.current_file %}{{ worker.current_file | truncate(12) }}{% elif worker.status == 'completed' %}done{% else %}wait{% endif %}
                                 </span>
-                                <span class="text-gray-600 ml-auto">{{ worker.files_transferred }}/{{ worker.files_total }}</span>
+                                <span class="text-gray-600 w-16 text-right flex-shrink-0">{{ worker.files_transferred }}/{{ worker.files_total }}</span>
                             </div>
                             {% endfor %}
                         </div>

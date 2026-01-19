@@ -578,12 +578,14 @@ class SyncManager:
         rsync_opts: list[str],
         progress: SyncProgress,
         job_id: str,
-    ) -> tuple[int, list[str]]:
+    ) -> tuple[int, int, list[str]]:
         """Run rsync for a subset of items assigned to this worker."""
         worker = progress.workers[worker_id]
         worker.status = "running"
         error_lines = []
         files_done = 0
+        bytes_done = 0
+        last_notify_time = datetime.utcnow()
 
         for item_name, item_files, item_bytes in items:
             # Check for stop request before each item
@@ -595,11 +597,16 @@ class SyncManager:
             item_source = os.path.join(source, item_name)
             worker.current_file = item_name
 
+            # Add --info=progress2 for real-time byte progress
+            cmd_opts = rsync_opts + ["--info=progress2", "--no-inc-recursive"]
+
             # Determine if item is file or directory
             if os.path.isfile(item_source):
-                cmd = ["rsync"] + rsync_opts + [item_source, dest]
+                cmd = ["rsync"] + cmd_opts + [item_source, dest]
             else:
-                cmd = ["rsync"] + rsync_opts + [item_source + "/", os.path.join(dest, item_name) + "/"]
+                cmd = ["rsync"] + cmd_opts + [item_source + "/", os.path.join(dest, item_name) + "/"]
+
+            item_bytes_transferred = 0
 
             try:
                 process = await asyncio.create_subprocess_exec(
@@ -622,12 +629,39 @@ class SyncManager:
                             break
 
                         try:
-                            line = await asyncio.wait_for(process.stdout.readline(), timeout=1.0)
+                            line = await asyncio.wait_for(process.stdout.readline(), timeout=0.5)
                             if not line:
                                 break
                             line_text = line.decode().strip()
+
+                            # Check for errors
                             if line_text.startswith("rsync:") or line_text.startswith("rsync error:"):
                                 error_lines.append(f"[Worker {worker_id}] {line_text}")
+                                continue
+
+                            # Parse --info=progress2 output
+                            # Format: "  1,234,567  45%   12.34MB/s    0:01:23" or with xfr
+                            match = re.search(
+                                r'^\s*([\d,]+)\s+(\d+)%\s+([\d.]+\S*/s)',
+                                line_text
+                            )
+                            if match:
+                                bytes_str, percent, rate = match.groups()
+                                item_bytes_transferred = int(bytes_str.replace(",", ""))
+                                worker.bytes_transferred = bytes_done + item_bytes_transferred
+                                worker.transfer_rate = rate
+
+                                # Update overall progress - throttle to every 0.5s
+                                now = datetime.utcnow()
+                                if (now - last_notify_time).total_seconds() >= 0.5:
+                                    progress.bytes_transferred = sum(w.bytes_transferred for w in progress.workers)
+                                    if progress.bytes_total > 0:
+                                        progress.percent_complete = (progress.bytes_transferred / progress.bytes_total) * 100
+                                    progress.transfer_rate = rate
+                                    progress.updated_at = now
+                                    await self._notify_progress(job_id, progress)
+                                    last_notify_time = now
+
                         except asyncio.TimeoutError:
                             # Just a timeout, continue checking
                             if process.returncode is not None:
@@ -639,11 +673,14 @@ class SyncManager:
 
                         if process.returncode == 0:
                             files_done += item_files
+                            bytes_done += item_bytes
                             worker.files_transferred = files_done
+                            worker.bytes_transferred = bytes_done
                             # Update overall progress
                             progress.files_transferred = sum(w.files_transferred for w in progress.workers)
-                            if progress.files_total > 0:
-                                progress.percent_complete = (progress.files_transferred / progress.files_total) * 100
+                            progress.bytes_transferred = sum(w.bytes_transferred for w in progress.workers)
+                            if progress.bytes_total > 0:
+                                progress.percent_complete = (progress.bytes_transferred / progress.bytes_total) * 100
                             progress.updated_at = datetime.utcnow()
                             await self._notify_progress(job_id, progress)
                         elif process.returncode != -15:  # -15 is SIGTERM
@@ -674,7 +711,7 @@ class SyncManager:
             worker.status = "completed" if not error_lines else "failed"
         worker.current_file = None
         progress.active_workers = sum(1 for w in progress.workers if w.status == "running")
-        return files_done, error_lines
+        return files_done, bytes_done, error_lines
 
     async def _run_sync(self, job: SyncJob):
         """Run the sync process for a job using parallel workers."""
@@ -774,13 +811,15 @@ class SyncManager:
 
             # Aggregate results
             total_files_done = 0
+            total_bytes_done = 0
             all_errors = []
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     all_errors.append(f"[Worker {i}] Exception: {result}")
                 else:
-                    files_done, errors = result
+                    files_done, bytes_done, errors = result
                     total_files_done += files_done
+                    total_bytes_done += bytes_done
                     all_errors.extend(errors)
 
             # Log errors
@@ -794,9 +833,9 @@ class SyncManager:
             stats = JobStats(
                 duration_seconds=duration,
                 files_synced=total_files_done if total_files_done > 0 else total_files,
-                bytes_transferred=total_bytes,
+                bytes_transferred=total_bytes_done if total_bytes_done > 0 else total_bytes,
                 files_per_second=total_files_done / duration if duration > 0 else 0.0,
-                bytes_per_second=total_bytes / duration if duration > 0 else 0.0,
+                bytes_per_second=total_bytes_done / duration if duration > 0 else 0.0,
                 errors=len(all_errors),
             )
 
