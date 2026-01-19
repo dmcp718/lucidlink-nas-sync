@@ -8,21 +8,12 @@
         </button>
     </div>
 
-    <form
-        {% if is_new %}
-        hx-post="/api/v1/jobs"
-        {% else %}
-        hx-put="/api/v1/jobs/{{ job.id }}"
-        {% endif %}
-        hx-ext="json-enc"
-        hx-on::after-request="if(event.detail.successful) { closeModal(); htmx.ajax('GET', '/partials/jobs-list', '#jobs-list'); }"
-        class="space-y-4">
-
+    <form id="job-form" class="space-y-4">
         <div>
             <label class="block text-sm font-medium text-gray-300 mb-1">Job Name</label>
             <input
                 type="text"
-                name="name"
+                id="job-name"
                 value="{{ job.name if job else '' }}"
                 required
                 class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
@@ -34,7 +25,7 @@
                 <label class="block text-sm font-medium text-gray-300 mb-1">Source Path</label>
                 <input
                     type="text"
-                    name="source_path"
+                    id="job-source"
                     value="{{ job.source_path if job else '/data/local' }}"
                     required
                     class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
@@ -44,7 +35,7 @@
                 <label class="block text-sm font-medium text-gray-300 mb-1">Destination Path</label>
                 <input
                     type="text"
-                    name="dest_path"
+                    id="job-dest"
                     value="{{ job.dest_path if job else '/data/filespace' }}"
                     required
                     class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
@@ -55,7 +46,7 @@
         <div>
             <label class="block text-sm font-medium text-gray-300 mb-1">Sync Direction</label>
             <select
-                name="direction"
+                id="job-direction"
                 class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
                 <option value="local-to-filespace" {% if job and job.direction == 'local-to-filespace' %}selected{% endif %}>Local to Filespace (Upload)</option>
                 <option value="filespace-to-local" {% if job and job.direction == 'filespace-to-local' %}selected{% endif %}>Filespace to Local (Download)</option>
@@ -68,7 +59,7 @@
                 <label class="block text-sm font-medium text-gray-300 mb-1">Sync Interval (seconds)</label>
                 <input
                     type="number"
-                    name="interval"
+                    id="job-interval"
                     value="{{ job.interval if job else 300 }}"
                     min="0"
                     class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
@@ -79,7 +70,7 @@
                 <label class="block text-sm font-medium text-gray-300 mb-1">Parallel Jobs</label>
                 <input
                     type="number"
-                    name="parallel_jobs"
+                    id="job-parallel"
                     value="{{ job.parallel_jobs if job else 4 }}"
                     min="1"
                     max="32"
@@ -91,7 +82,7 @@
             <label class="block text-sm font-medium text-gray-300 mb-1">Rsync Options</label>
             <input
                 type="text"
-                name="rsync_options"
+                id="job-rsync-options"
                 value="{{ job.rsync_options if job else '-avz --progress' }}"
                 class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
                 placeholder="-avz --progress">
@@ -100,7 +91,7 @@
         <div>
             <label class="block text-sm font-medium text-gray-300 mb-1">Exclude Patterns (one per line)</label>
             <textarea
-                name="exclude_patterns_text"
+                id="job-excludes"
                 rows="3"
                 class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
                 placeholder="*.tmp&#10;.DS_Store&#10;Thumbs.db">{% if job and job.exclude_patterns %}{{ job.exclude_patterns | join('\n') }}{% endif %}</textarea>
@@ -109,12 +100,13 @@
         <div class="flex items-center">
             <input
                 type="checkbox"
-                name="enabled"
-                id="enabled"
+                id="job-enabled"
                 {% if not job or job.enabled %}checked{% endif %}
                 class="w-4 h-4 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
-            <label for="enabled" class="ml-2 text-sm text-gray-300">Enabled</label>
+            <label for="job-enabled" class="ml-2 text-sm text-gray-300">Enabled</label>
         </div>
+
+        <div id="form-error" class="hidden text-red-400 text-sm"></div>
 
         <div class="flex justify-end space-x-3 pt-4 border-t border-gray-700">
             <button
@@ -133,18 +125,47 @@
 </div>
 
 <script>
-    // Convert exclude patterns textarea to array before submit
-    document.querySelector('form').addEventListener('htmx:configRequest', function(evt) {
-        const textarea = document.querySelector('[name="exclude_patterns_text"]');
-        if (textarea) {
-            const patterns = textarea.value.split('\n').filter(p => p.trim());
-            evt.detail.parameters.exclude_patterns = patterns;
-            delete evt.detail.parameters.exclude_patterns_text;
+document.getElementById('job-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const excludesText = document.getElementById('job-excludes').value;
+    const excludePatterns = excludesText.split('\n').map(s => s.trim()).filter(s => s);
+
+    const data = {
+        name: document.getElementById('job-name').value,
+        source_path: document.getElementById('job-source').value,
+        dest_path: document.getElementById('job-dest').value,
+        direction: document.getElementById('job-direction').value,
+        interval: parseInt(document.getElementById('job-interval').value) || 0,
+        parallel_jobs: parseInt(document.getElementById('job-parallel').value) || 4,
+        rsync_options: document.getElementById('job-rsync-options').value,
+        exclude_patterns: excludePatterns,
+        enabled: document.getElementById('job-enabled').checked
+    };
+
+    const isNew = {{ 'true' if is_new else 'false' }};
+    const jobId = '{{ job.id if job else "" }}';
+    const url = isNew ? '/api/v1/jobs' : '/api/v1/jobs/' + jobId;
+    const method = isNew ? 'POST' : 'PUT';
+
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            closeModal();
+            htmx.ajax('GET', '/partials/jobs-list', '#jobs-list');
+        } else {
+            const err = await response.json();
+            document.getElementById('form-error').textContent = err.detail || 'Failed to save job';
+            document.getElementById('form-error').classList.remove('hidden');
         }
-        // Convert enabled checkbox to boolean
-        evt.detail.parameters.enabled = document.getElementById('enabled').checked;
-        // Convert numbers
-        evt.detail.parameters.interval = parseInt(evt.detail.parameters.interval) || 0;
-        evt.detail.parameters.parallel_jobs = parseInt(evt.detail.parameters.parallel_jobs) || 4;
-    });
+    } catch (err) {
+        document.getElementById('form-error').textContent = 'Network error: ' + err.message;
+        document.getElementById('form-error').classList.remove('hidden');
+    }
+});
 </script>

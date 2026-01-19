@@ -7,7 +7,7 @@
                 <th class="px-4 py-3 text-left text-sm font-medium">Direction</th>
                 <th class="px-4 py-3 text-left text-sm font-medium">Status</th>
                 <th class="px-4 py-3 text-left text-sm font-medium">Last Run</th>
-                <th class="px-4 py-3 text-left text-sm font-medium">Interval</th>
+                <th class="px-4 py-3 text-left text-sm font-medium">Statistics</th>
                 <th class="px-4 py-3 text-right text-sm font-medium">Actions</th>
             </tr>
         </thead>
@@ -30,23 +30,67 @@
                     {% endif %}
                 </td>
                 <td class="px-4 py-3">
+                    {% set progress = progress_map.get(job.id) if progress_map else None %}
                     <span class="flex items-center space-x-2">
                         <span class="status-dot status-{{ job.status }}"></span>
                         <span class="text-sm capitalize">{{ job.status }}</span>
                     </span>
+                    {% if job.status == 'running' and progress %}
+                    <div class="mt-2">
+                        <div class="flex justify-between text-xs text-gray-400 mb-1">
+                            <span>{{ progress.files_transferred }} files</span>
+                            <span>{{ "%.1f"|format(progress.percent_complete) }}%</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2">
+                            <div class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: {{ progress.percent_complete }}%"></div>
+                        </div>
+                        {% if progress.current_file %}
+                        <div class="text-xs text-gray-500 mt-1 truncate" title="{{ progress.current_file }}">
+                            {{ progress.current_file | truncate(30) }}
+                        </div>
+                        {% endif %}
+                        {% if progress.transfer_rate %}
+                        <div class="text-xs text-gray-400 mt-1">
+                            {{ progress.transfer_rate }} {% if progress.eta %} - ETA: {{ progress.eta }}{% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-400">
                     {% if job.last_run_at %}
-                    {{ job.last_run_at.strftime('%Y-%m-%d %H:%M') if job.last_run_at else 'Never' }}
+                    <div>{{ job.last_run_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                    {% if job.last_run_duration %}
+                    <div class="text-xs text-gray-500">{{ "%.1f"|format(job.last_run_duration) }}s</div>
+                    {% endif %}
                     {% else %}
                     Never
                     {% endif %}
                 </td>
                 <td class="px-4 py-3 text-sm">
-                    {% if job.interval == 0 %}
-                    <span class="text-gray-400">Manual</span>
+                    {% if job.run_count > 0 %}
+                    <div class="text-xs space-y-1">
+                        <div><span class="text-gray-400">Runs:</span> {{ job.run_count }}</div>
+                        <div><span class="text-gray-400">Files:</span> {{ job.total_files_synced }}</div>
+                        {% if job.avg_files_per_second > 0 %}
+                        <div><span class="text-gray-400">Avg:</span> {{ "%.1f"|format(job.avg_files_per_second) }} files/s</div>
+                        {% endif %}
+                        {% if job.total_bytes_transferred > 0 %}
+                        <div><span class="text-gray-400">Total:</span>
+                            {% if job.total_bytes_transferred < 1024 %}
+                            {{ job.total_bytes_transferred }} B
+                            {% elif job.total_bytes_transferred < 1024 * 1024 %}
+                            {{ "%.1f"|format(job.total_bytes_transferred / 1024) }} KB
+                            {% elif job.total_bytes_transferred < 1024 * 1024 * 1024 %}
+                            {{ "%.1f"|format(job.total_bytes_transferred / 1024 / 1024) }} MB
+                            {% else %}
+                            {{ "%.2f"|format(job.total_bytes_transferred / 1024 / 1024 / 1024) }} GB
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
                     {% else %}
-                    {{ job.interval }}s
+                    <span class="text-gray-500">No runs yet</span>
                     {% endif %}
                 </td>
                 <td class="px-4 py-3 text-right">

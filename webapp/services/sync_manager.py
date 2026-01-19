@@ -18,6 +18,7 @@ from webapp.models.sync_job import (
     SyncJobUpdate,
     SyncProgress,
     JobStatus,
+    JobStats,
     SystemStatus,
 )
 
@@ -177,6 +178,35 @@ class SyncManager:
 
         return True, "Job stopped"
 
+    def _get_source_stats(self, source_path: str, exclude_patterns: list[str]) -> tuple[int, int]:
+        """Calculate total files and bytes in source directory."""
+        total_files = 0
+        total_bytes = 0
+        try:
+            for root, dirs, files in os.walk(source_path):
+                # Filter excluded patterns
+                for pattern in exclude_patterns:
+                    dirs[:] = [d for d in dirs if not self._matches_pattern(d, pattern)]
+
+                for f in files:
+                    # Skip excluded files
+                    if any(self._matches_pattern(f, p) for p in exclude_patterns):
+                        continue
+                    try:
+                        filepath = os.path.join(root, f)
+                        total_bytes += os.path.getsize(filepath)
+                        total_files += 1
+                    except (OSError, PermissionError):
+                        pass
+        except (OSError, PermissionError):
+            pass
+        return total_files, total_bytes
+
+    def _matches_pattern(self, name: str, pattern: str) -> bool:
+        """Simple pattern matching for exclude patterns."""
+        import fnmatch
+        return fnmatch.fnmatch(name, pattern)
+
     async def _run_sync(self, job: SyncJob):
         """Run the sync process for a job."""
         job_id = job.id
@@ -185,6 +215,9 @@ class SyncManager:
             # Build rsync command with progress
             source = job.source_path.rstrip("/") + "/"
             dest = job.dest_path.rstrip("/") + "/"
+
+            # Calculate source size before sync
+            source_files, source_bytes = self._get_source_stats(source, job.exclude_patterns)
 
             # Base rsync options with machine-readable progress
             rsync_opts = job.rsync_options.split()
@@ -225,11 +258,28 @@ class SyncManager:
             # Wait for process to complete
             await process.wait()
 
+            # Calculate duration and statistics
+            end_time = datetime.utcnow()
+            duration = (end_time - progress.started_at).total_seconds() if progress.started_at else 0.0
+
+            # Build stats - use source size for accurate byte count
+            files_synced = progress.files_transferred if progress.files_transferred > 0 else source_files
+            bytes_synced = source_bytes  # Use actual source size, not rsync transfer bytes
+
+            stats = JobStats(
+                duration_seconds=duration,
+                files_synced=files_synced,
+                bytes_transferred=bytes_synced,
+                files_per_second=files_synced / duration if duration > 0 else 0.0,
+                bytes_per_second=bytes_synced / duration if duration > 0 else 0.0,
+                errors=1 if process.returncode != 0 else 0,
+            )
+
             # Update final status
             if process.returncode == 0:
                 job.status = JobStatus.COMPLETED
                 job.last_run_status = JobStatus.COMPLETED
-                job.last_run_message = "Completed successfully"
+                job.last_run_message = f"Completed: {stats.files_synced} files in {duration:.1f}s"
                 progress.status = JobStatus.COMPLETED
                 progress.percent_complete = 100.0
             else:
@@ -239,7 +289,18 @@ class SyncManager:
                 progress.status = JobStatus.FAILED
                 progress.error_message = f"Exit code: {process.returncode}"
 
+            # Store stats
+            job.last_run_duration = duration
+            job.last_run_stats = stats
             job.run_count += 1
+
+            # Update aggregate statistics
+            job.total_files_synced += stats.files_synced
+            job.total_bytes_transferred += stats.bytes_transferred
+            job.total_run_time += duration
+            if job.total_run_time > 0:
+                job.avg_files_per_second = job.total_files_synced / job.total_run_time
+                job.avg_bytes_per_second = job.total_bytes_transferred / job.total_run_time
 
         except Exception as e:
             job.status = JobStatus.FAILED

@@ -6,6 +6,7 @@
     <title>LucidLink Sync</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/json-enc.js"></script>
     <style>
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         .status-connected { background-color: #22c55e; }
@@ -59,7 +60,7 @@
                 </button>
             </div>
 
-            <div id="jobs-list" hx-get="/partials/jobs-list" hx-trigger="every 3s">
+            <div id="jobs-list" hx-get="/partials/jobs-list" hx-trigger="every 1s">
                 {% include 'partials/jobs_list.html' %}
             </div>
         </div>

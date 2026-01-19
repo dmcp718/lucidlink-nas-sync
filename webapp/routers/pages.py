@@ -62,11 +62,18 @@ async def edit_job(request: Request, job_id: str):
 async def jobs_list_partial(request: Request):
     """HTMX partial for jobs list."""
     jobs = await sync_manager.list_jobs()
+    # Get progress for each job
+    progress_map = {}
+    for job in jobs:
+        progress = sync_manager.get_progress(job.id)
+        if progress:
+            progress_map[job.id] = progress
     return templates.TemplateResponse(
         "partials/jobs_list.html",
         {
             "request": request,
             "jobs": jobs,
+            "progress_map": progress_map,
         }
     )
 

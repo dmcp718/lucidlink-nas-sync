@@ -53,7 +53,7 @@ services:
 
     volumes:
       # Mount your local data directory
-      - ./test-data:/data/local
+      - /home/mini-admin:/data/local
 
       # Persist sync logs
       - ./logs:/var/log/sync

@@ -7,7 +7,12 @@
       "Bash(docker compose:*)",
       "Bash(curl:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: LucidLink Sync with web UI\n\n- Docker container for syncing files between local storage and LucidLink filespace\n- FastAPI web application with HTMX-based UI for job management\n- Parallel rsync synchronization with progress tracking\n- Fixed mount detection to use /proc/mounts instead of .lucid directory\n- Full web UI templates for dashboard, job management, file browser, and logs\n- TrueNAS SCALE deployment manifests included\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git config:*)",
+      "Bash(for d in /home/mini-admin/mock-data/*/)",
+      "Bash(python3:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

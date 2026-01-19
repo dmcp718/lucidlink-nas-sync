@@ -73,6 +73,16 @@ class SyncJobUpdate(BaseModel):
     enabled: Optional[bool] = None
 
 
+class JobStats(BaseModel):
+    """Statistics for a sync job run."""
+    duration_seconds: float = 0.0
+    files_synced: int = 0
+    bytes_transferred: int = 0
+    files_per_second: float = 0.0
+    bytes_per_second: float = 0.0
+    errors: int = 0
+
+
 class SyncJob(SyncJobBase):
     """Complete sync job model with metadata."""
     id: str = Field(default_factory=lambda: str(uuid4()))
@@ -82,7 +92,15 @@ class SyncJob(SyncJobBase):
     last_run_at: Optional[datetime] = None
     last_run_status: Optional[JobStatus] = None
     last_run_message: Optional[str] = None
+    last_run_duration: Optional[float] = None
+    last_run_stats: Optional[JobStats] = None
     run_count: int = 0
+    # Aggregate statistics
+    total_files_synced: int = 0
+    total_bytes_transferred: int = 0
+    total_run_time: float = 0.0
+    avg_files_per_second: float = 0.0
+    avg_bytes_per_second: float = 0.0
 
     class Config:
         use_enum_values = True
