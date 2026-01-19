@@ -1,163 +1,311 @@
 # TrueNAS SCALE Deployment Guide
 
-This guide covers deploying the LucidLink Sync container on TrueNAS SCALE.
+This guide covers deploying the LucidLink Sync container on TrueNAS SCALE using the Custom App feature.
+
+> **Reference**: [TrueNAS Custom App Documentation](https://apps.truenas.com/managing-apps/installing-custom-apps/)
 
 ## Prerequisites
 
-1. TrueNAS SCALE 22.02 or later
-2. A LucidLink filespace with valid credentials
-3. A dataset for local data storage (e.g., `/mnt/pool-z/data1/backup_misc`)
+1. **TrueNAS SCALE** 24.04 "Dragonfish" or later
+2. **LucidLink filespace** with valid credentials
+3. **Dataset** for local data storage (e.g., `/mnt/pool/data/backup`)
+4. **Dataset** for app config persistence (e.g., `/mnt/pool/apps/lucidlink-sync`)
 
-## Option 1: Custom App via TrueNAS Web UI (Recommended)
+## Quick Overview
 
-### Step 1: Build and Push the Image
+| Component | Details |
+|-----------|---------|
+| Container Image | `lucidlink-sync:latest` |
+| Web UI Port | `8080` |
+| Required Security | Privileged Mode + `SYS_ADMIN` + `MKNOD` |
+| Required Device | `/dev/fuse` as Host Path |
+| Data Mount | Your data directory → `/data/local` |
+| Config Mount | Persistent storage → `/config` |
 
-First, build the Docker image and push it to a registry accessible by your TrueNAS server:
+---
 
-```bash
-# Build the image
-docker build -t lucidlink-sync:latest .
+## Step 1: Build the Docker Image
 
-# Tag for your registry (example using Docker Hub)
-docker tag lucidlink-sync:latest yourusername/lucidlink-sync:latest
-
-# Push to registry
-docker push yourusername/lucidlink-sync:latest
-```
-
-Alternatively, build directly on TrueNAS if you have SSH access:
+SSH into your TrueNAS server and build the image locally:
 
 ```bash
 # SSH to TrueNAS
-ssh root@192.168.8.160
+ssh admin@YOUR_TRUENAS_IP
 
-# Clone or copy the project
-cd /tmp
-# ... copy files ...
+# Create a temporary build directory
+mkdir -p /tmp/lucidlink-build
+cd /tmp/lucidlink-build
 
-# Build using Docker (TrueNAS SCALE includes Docker)
+# Option A: Clone from git
+git clone https://github.com/yourusername/lucidlink-sync.git .
+
+# Option B: Copy files via SCP from your workstation
+# scp -r /path/to/lucidlink-sync/* admin@YOUR_TRUENAS_IP:/tmp/lucidlink-build/
+
+# Build the Docker image
 docker build -t lucidlink-sync:latest .
+
+# Verify the image exists
+docker images | grep lucidlink-sync
 ```
 
-### Step 2: Deploy via TrueNAS Web UI
+---
 
-1. Navigate to **Apps** in the TrueNAS SCALE web interface
+## Step 2: Create Datasets for Persistent Storage
+
+In TrueNAS Web UI:
+
+1. Go to **Datasets**
+2. Create a dataset for app data: `pool/apps/lucidlink-sync`
+3. Create subdirectories:
+   ```bash
+   mkdir -p /mnt/pool/apps/lucidlink-sync/{config,logs,cache}
+   ```
+
+---
+
+## Step 3: Deploy via Custom App
+
+1. Navigate to **Apps** in TrueNAS Web UI
 2. Click **Discover Apps** → **Custom App**
-3. Configure the following settings:
 
-#### Application Name
-- Name: `lucidlink-sync`
+### Application Name
+| Field | Value |
+|-------|-------|
+| **Application Name** | `lucidlink-sync` |
 
-#### Container Images
-- Image repository: `lucidlink-sync` (or your registry path)
-- Image tag: `latest`
-- Image Pull Policy: `IfNotPresent`
+### Image Configuration
+| Field | Value |
+|-------|-------|
+| **Image Repository** | `lucidlink-sync` |
+| **Tag** | `latest` |
+| **Pull Policy** | `Never` (local image) |
 
-#### Container Entrypoint
-- Leave default (uses `/scripts/entrypoint.sh`)
+> **Note**: Use `Never` since we built the image locally. Use `Always` or `IfNotPresent` if using a registry.
 
-#### Container Environment Variables
+### Container Configuration
 
-Add the following environment variables:
+#### Environment Variables
+
+Click **Add** for each variable:
 
 | Name | Value |
 |------|-------|
-| LUCIDLINK_FILESPACE | `your-filespace.domain` |
-| LUCIDLINK_USER | `your-username` |
-| LUCIDLINK_PASSWORD | `your-password` |
-| LUCIDLINK_MOUNT_POINT | `/data/filespace` |
-| LOCAL_DATA_PATH | `/data/local` |
-| SYNC_DIRECTION | `local-to-filespace` |
-| SYNC_INTERVAL | `300` |
-| PARALLEL_JOBS | `4` |
-| RSYNC_OPTIONS | `-avz --progress` |
-| SYNC_EXCLUDE | `.DS_Store,Thumbs.db,*.tmp` |
+| `LUCIDLINK_FILESPACE` | `your-filespace.domain` |
+| `LUCIDLINK_USER` | `your-username` |
+| `LUCIDLINK_PASSWORD` | `your-password` |
+| `LUCIDLINK_MOUNT_POINT` | `/data/filespace` |
+| `LOCAL_DATA_PATH` | `/data/local` |
+| `SYNC_INTERVAL` | `0` |
+| `PARALLEL_JOBS` | `4` |
+| `WEBUI_ENABLED` | `true` |
+| `WEBUI_PORT` | `8080` |
 
-#### Security Context (CRITICAL)
+> **Tip**: Set `SYNC_INTERVAL=0` to disable automatic sync. Use the Web UI to create and manage sync jobs instead.
 
-This section is essential for FUSE support:
+#### Restart Policy
+- Select: `Unless Stopped`
 
-1. Check **Privileged Mode** ✓
-2. Under **Capabilities**, add:
-   - `SYS_ADMIN`
-   - `MKNOD`
+### Security Context (CRITICAL)
 
-#### Storage
+This section is **required** for LucidLink/FUSE to work.
 
-Add the following host path volumes:
+| Setting | Value |
+|---------|-------|
+| **Privileged** | ✓ Enabled |
 
-| Host Path | Mount Path | Description |
-|-----------|------------|-------------|
-| `/dev/fuse` | `/dev/fuse` | FUSE device (required) |
-| `/mnt/pool-z/data1/backup_misc` | `/data/local` | Your data directory |
+Under **Capabilities**, click **Add** for each:
+- `SYS_ADMIN`
+- `MKNOD`
 
-For the `/dev/fuse` mount:
-- Type: **Host Path**
-- Host Path: `/dev/fuse`
-- Mount Path: `/dev/fuse`
+> **Warning**: Privileged mode grants full host device access. Only enable if you trust the container.
 
-For the data mount:
-- Type: **Host Path**
-- Host Path: `/mnt/pool-z/data1/backup_misc`
-- Mount Path: `/data/local`
-- Read Only: No
+### Storage Configuration
 
-#### Resource Limits (Optional)
+Add the following Host Path mounts. Click **Add** under Storage for each:
 
-- CPU: 2000m (2 cores)
-- Memory: 2Gi
+#### 1. FUSE Device (REQUIRED)
+| Field | Value |
+|-------|-------|
+| **Type** | Host Path |
+| **Host Path** | `/dev/fuse` |
+| **Mount Path** | `/dev/fuse` |
+| **Read Only** | No |
 
-### Step 3: Deploy
+#### 2. Local Data Directory
+| Field | Value |
+|-------|-------|
+| **Type** | Host Path |
+| **Host Path** | `/mnt/pool/data/backup` (your data) |
+| **Mount Path** | `/data/local` |
+| **Read Only** | No |
+
+#### 3. Config Persistence
+| Field | Value |
+|-------|-------|
+| **Type** | Host Path |
+| **Host Path** | `/mnt/pool/apps/lucidlink-sync/config` |
+| **Mount Path** | `/config` |
+| **Read Only** | No |
+
+#### 4. Log Persistence (Optional)
+| Field | Value |
+|-------|-------|
+| **Type** | Host Path |
+| **Host Path** | `/mnt/pool/apps/lucidlink-sync/logs` |
+| **Mount Path** | `/var/log/sync` |
+| **Read Only** | No |
+
+#### 5. LucidLink Cache (Optional)
+| Field | Value |
+|-------|-------|
+| **Type** | Host Path |
+| **Host Path** | `/mnt/pool/apps/lucidlink-sync/cache` |
+| **Mount Path** | `/cache` |
+| **Read Only** | No |
+
+### Network Configuration
+
+#### Ports
+Click **Add** under Ports:
+
+| Field | Value |
+|-------|-------|
+| **Container Port** | `8080` |
+| **Host Port** | `8080` |
+| **Protocol** | TCP |
+
+### Portal Configuration (Optional)
+
+To add a quick-access link in TrueNAS Apps UI:
+
+| Field | Value |
+|-------|-------|
+| **Name** | `Web UI` |
+| **Protocol** | `HTTP` |
+| **Host** | Leave as Node IP |
+| **Port** | `8080` |
+| **Path** | `/` |
+
+### Resources (Optional)
+
+| Field | Value |
+|-------|-------|
+| **CPU** | `4` (4 cores) |
+| **Memory** | `4096` (MB) |
+
+---
+
+## Step 4: Install
 
 Click **Install** to deploy the application.
 
-## Option 2: Deploy via CLI (kubectl)
+Monitor the deployment in the Apps list. The container should start within 30-60 seconds.
 
-If you have kubectl access to the TrueNAS SCALE Kubernetes cluster:
+---
 
-```bash
-# Apply the deployment manifest
-kubectl apply -f truenas-scale/deployment.yaml
+## Step 5: Access the Web UI
 
-# Check deployment status
-kubectl -n lucidlink-sync get pods
+Once deployed, access the Web UI at:
 
-# View logs
-kubectl -n lucidlink-sync logs -f deployment/lucidlink-sync
+```
+http://YOUR_TRUENAS_IP:8080
 ```
 
-## Verifying the Deployment
+Or click the **Web UI** portal link in the Apps list (if configured).
 
-### Check Container Logs
+---
 
-Via TrueNAS UI:
-1. Go to **Apps** → **lucidlink-sync**
-2. Click **View Logs**
+## Web UI Features
 
-Via CLI:
+| Feature | Description |
+|---------|-------------|
+| **Sync Jobs** | Create, edit, start, stop sync jobs |
+| **File Browser** | Browse local and LucidLink filespace |
+| **Path Picker** | Select source/destination paths with Browse button |
+| **Progress Tracking** | Real-time sync progress with parallel worker status |
+| **Filename Issues** | Detect and fix problematic filenames |
+| **Logs** | View container, sync, and error logs |
+
+### Creating a Sync Job
+
+1. Open Web UI at `http://YOUR_TRUENAS_IP:8080`
+2. Click **New Job**
+3. Configure:
+   - **Name**: Descriptive name (e.g., "Backup to Cloud")
+   - **Source Path**: Click **Browse** to select
+   - **Destination Path**: Click **Browse** to select
+   - **Direction**: `local-to-filespace`, `filespace-to-local`, or `bidirectional`
+   - **Parallel Jobs**: Number of workers (default: 4)
+4. Click **Create Job**
+5. Click **Start** to run the sync
+
+---
+
+## Alternative: Docker CLI Deployment
+
+For direct Docker deployment via SSH:
+
 ```bash
 # SSH to TrueNAS
-ssh root@192.168.8.160
+ssh admin@YOUR_TRUENAS_IP
 
-# Find the container
-docker ps | grep lucidlink
+# Create directories
+mkdir -p /mnt/pool/apps/lucidlink-sync/{config,logs,cache}
 
-# View logs
-docker logs -f <container_id>
+# Run the container
+docker run -d \
+  --name lucidlink-sync \
+  --privileged \
+  --cap-add SYS_ADMIN \
+  --cap-add MKNOD \
+  --device /dev/fuse:/dev/fuse \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -e LUCIDLINK_FILESPACE="your-filespace.domain" \
+  -e LUCIDLINK_USER="your-username" \
+  -e LUCIDLINK_PASSWORD="your-password" \
+  -e SYNC_INTERVAL="0" \
+  -e WEBUI_ENABLED="true" \
+  -v /mnt/pool/data/backup:/data/local \
+  -v /mnt/pool/apps/lucidlink-sync/config:/config \
+  -v /mnt/pool/apps/lucidlink-sync/logs:/var/log/sync \
+  -v /mnt/pool/apps/lucidlink-sync/cache:/cache \
+  lucidlink-sync:latest
 ```
 
-### Verify LucidLink Connection
+---
+
+## Verification
+
+### Check Container Status
 
 ```bash
-# Exec into container
-docker exec -it <container_id> bash
+# View running containers
+docker ps | grep lucidlink-sync
 
-# Check LucidLink status
-lucid status
+# View logs
+docker logs -f lucidlink-sync
 
-# Verify mount
-ls -la /data/filespace/
+# Check LucidLink connection
+docker exec -it lucidlink-sync lucid status
+
+# Verify filespace mount
+docker exec -it lucidlink-sync ls -la /data/filespace/
 ```
+
+### Health Check
+
+```bash
+curl http://YOUR_TRUENAS_IP:8080/health
+```
+
+Expected response:
+```json
+{"status":"healthy","webui_enabled":true,"lucidlink_mount":"/data/filespace","local_path":"/data/local"}
+```
+
+---
 
 ## Troubleshooting
 
@@ -165,52 +313,142 @@ ls -la /data/filespace/
 
 **Error**: `/dev/fuse not available`
 
-**Solution**: Ensure privileged mode is enabled and `/dev/fuse` is mounted as a host path.
+**Solution**:
+1. Verify `/dev/fuse` is added as Host Path storage mount
+2. Ensure **Privileged** mode is enabled
+3. Add `SYS_ADMIN` and `MKNOD` capabilities
 
-### Permission Denied
+### Permission Denied on /dev/fuse
 
 **Error**: `fuse: failed to open /dev/fuse: Permission denied`
 
 **Solution**:
-1. Enable **Privileged Mode**
-2. Add `SYS_ADMIN` capability
-3. Verify `/dev/fuse` host path mount
+1. Enable **Privileged** mode (required for FUSE)
+2. Redeploy the app after changing security settings
 
-### LucidLink Daemon Won't Start
+### LucidLink Connection Fails
 
 **Error**: `Failed to connect to filespace`
 
 **Solution**:
 1. Verify credentials are correct
-2. Check network connectivity from container
-3. Ensure filespace name is fully qualified (includes domain)
+2. Check filespace name is fully qualified (e.g., `myspace.lucid.link`)
+3. Test network: `docker exec lucidlink-sync ping -c 3 google.com`
+
+### Web UI Not Accessible
+
+**Symptoms**: Cannot reach `http://IP:8080`
+
+**Solution**:
+1. Verify port 8080 is mapped in Network Configuration
+2. Check container is running: `docker ps | grep lucidlink`
+3. Check logs: `docker logs lucidlink-sync`
+4. Verify firewall allows port 8080
+
+### Sync Jobs Disappear After Restart
+
+**Solution**: Ensure `/config` is mounted to persistent Host Path storage, not Tmpfs or ixVolume.
 
 ### Container Keeps Restarting
 
 Check logs for specific errors:
 ```bash
-docker logs <container_id>
+docker logs lucidlink-sync
 ```
 
 Common causes:
-- Invalid credentials
+- Invalid LucidLink credentials
+- FUSE not available (check privileged mode)
 - Missing environment variables
-- FUSE not available
+
+---
 
 ## Security Considerations
 
-1. **Credentials**: Store LucidLink credentials securely. Consider using TrueNAS's secret management.
+1. **Privileged Mode**: Required for FUSE. Only deploy containers you trust.
 
-2. **Privileged Mode**: This container runs in privileged mode. Only deploy if you trust the container contents.
+2. **Credentials**: Stored as environment variables. For production:
+   - Restrict TrueNAS admin access
+   - Consider using a dedicated LucidLink service account
+   - Rotate credentials periodically
 
-3. **Network**: The container needs outbound internet access to connect to LucidLink cloud services.
+3. **Network**:
+   - Outbound: Container needs internet access for LucidLink cloud
+   - Inbound: Port 8080 for Web UI (restrict to trusted networks)
 
-## Sync Behavior
+4. **Data Access**: Mount only the directories the container needs.
 
-| Direction | Behavior |
-|-----------|----------|
-| `local-to-filespace` | Copies from TrueNAS storage to LucidLink |
-| `filespace-to-local` | Copies from LucidLink to TrueNAS storage |
-| `bidirectional` | Syncs both directions (local first, then filespace) |
+---
 
-The sync runs every `SYNC_INTERVAL` seconds (default: 300 = 5 minutes).
+## Updating the Container
+
+```bash
+# SSH to TrueNAS
+ssh admin@YOUR_TRUENAS_IP
+
+# Rebuild the image
+cd /tmp/lucidlink-build
+git pull  # or copy updated files
+docker build -t lucidlink-sync:latest .
+
+# Stop and remove old container
+docker stop lucidlink-sync
+docker rm lucidlink-sync
+
+# Start new container (use same docker run command)
+```
+
+Or via TrueNAS Apps UI:
+1. Stop the app
+2. Rebuild the image via SSH
+3. Start the app
+
+---
+
+## Environment Variable Reference
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `LUCIDLINK_FILESPACE` | Yes | - | Filespace name (e.g., `myspace.lucid.link`) |
+| `LUCIDLINK_USER` | Yes | - | LucidLink username |
+| `LUCIDLINK_PASSWORD` | Yes | - | LucidLink password |
+| `LUCIDLINK_MOUNT_POINT` | No | `/data/filespace` | Container mount for filespace |
+| `LOCAL_DATA_PATH` | No | `/data/local` | Container path for local data |
+| `SYNC_DIRECTION` | No | `local-to-filespace` | Default sync direction |
+| `SYNC_INTERVAL` | No | `300` | Seconds between auto-syncs (0=disabled) |
+| `PARALLEL_JOBS` | No | `4` | Number of parallel rsync workers |
+| `RSYNC_OPTIONS` | No | `-avz --progress` | rsync command options |
+| `SYNC_EXCLUDE` | No | - | Comma-separated exclude patterns |
+| `WEBUI_ENABLED` | No | `true` | Enable/disable Web UI |
+| `WEBUI_PORT` | No | `8080` | Web UI port |
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      TrueNAS SCALE                               │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │                lucidlink-sync container                      ││
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       ││
+│  │  │   Web UI     │  │  LucidLink   │  │   Parallel   │       ││
+│  │  │   :8080      │  │   Daemon     │  │    Rsync     │       ││
+│  │  └──────────────┘  └──────┬───────┘  └──────┬───────┘       ││
+│  │                           │                  │               ││
+│  │         /data/filespace ◄─┘                  └─► /data/local ││
+│  │            (FUSE)                              (bind mount)  ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                  │                                    │          │
+│                  │                                    ▼          │
+│                  │              /mnt/pool/data/backup            │
+│                  │                 (TrueNAS dataset)             │
+└──────────────────┼──────────────────────────────────────────────┘
+                   │
+                   │ Internet (HTTPS)
+                   ▼
+          ┌─────────────────┐
+          │    LucidLink    │
+          │     Cloud       │
+          └─────────────────┘
+```

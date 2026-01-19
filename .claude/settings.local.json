@@ -14,7 +14,8 @@
       "Bash(python3:*)",
       "Bash(git commit:*)",
       "Bash(docker restart:*)",
-      "Bash(docker ps:*)"
+      "Bash(docker ps:*)",
+      "WebFetch(domain:apps.truenas.com)"
     ]
   }
 }
