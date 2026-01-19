@@ -15,7 +15,14 @@
       "Bash(git commit:*)",
       "Bash(docker restart:*)",
       "Bash(docker ps:*)",
-      "WebFetch(domain:apps.truenas.com)"
+      "WebFetch(domain:apps.truenas.com)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git fetch:*)",
+      "Bash(git rebase:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

@@ -18,7 +18,7 @@ This guide covers deploying the LucidLink Sync container on TrueNAS SCALE using 
 | Container Image | `lucidlink-sync:latest` |
 | Web UI Port | `8080` |
 | Required Security | Privileged Mode + `SYS_ADMIN` + `MKNOD` |
-| Required Device | `/dev/fuse` as Host Path |
+| Required Device | `/dev/fuse` |
 | Data Mount | Your data directory → `/data/local` |
 | Config Mount | Persistent storage → `/config` |
 
@@ -37,7 +37,7 @@ mkdir -p /tmp/lucidlink-build
 cd /tmp/lucidlink-build
 
 # Option A: Clone from git
-git clone https://github.com/yourusername/lucidlink-sync.git .
+git clone https://github.com/dmcp718/lucidlink-nas-sync.git .
 
 # Option B: Copy files via SCP from your workstation
 # scp -r /path/to/lucidlink-sync/* admin@YOUR_TRUENAS_IP:/tmp/lucidlink-build/
@@ -57,7 +57,7 @@ In TrueNAS Web UI:
 
 1. Go to **Datasets**
 2. Create a dataset for app data: `pool/apps/lucidlink-sync`
-3. Create subdirectories:
+3. Create subdirectories via SSH:
    ```bash
    mkdir -p /mnt/pool/apps/lucidlink-sync/{config,logs,cache}
    ```
@@ -69,21 +69,42 @@ In TrueNAS Web UI:
 1. Navigate to **Apps** in TrueNAS Web UI
 2. Click **Discover Apps** → **Custom App**
 
+---
+
 ### Application Name
+
 | Field | Value |
 |-------|-------|
 | **Application Name** | `lucidlink-sync` |
+| **Version** | `1.0.0` (or leave default) |
+
+---
 
 ### Image Configuration
+
 | Field | Value |
 |-------|-------|
 | **Image Repository** | `lucidlink-sync` |
 | **Tag** | `latest` |
 | **Pull Policy** | `Never` (local image) |
 
-> **Note**: Use `Never` since we built the image locally. Use `Always` or `IfNotPresent` if using a registry.
+> **Note**: Use `Never` since we built the image locally. Use `Always` or `IfNotPresent` if pulling from a registry.
+
+---
 
 ### Container Configuration
+
+#### Hostname
+Leave empty (optional)
+
+#### Entrypoint
+Leave empty (uses container default: `/scripts/entrypoint.sh`)
+
+#### Command
+Leave empty (uses container default)
+
+#### Timezone
+Select your timezone (e.g., `America/Chicago`)
 
 #### Environment Variables
 
@@ -104,95 +125,150 @@ Click **Add** for each variable:
 > **Tip**: Set `SYNC_INTERVAL=0` to disable automatic sync. Use the Web UI to create and manage sync jobs instead.
 
 #### Restart Policy
-- Select: `Unless Stopped`
+Select: `Unless Stopped`
 
-### Security Context (CRITICAL)
+#### Other Options
+| Option | Value |
+|--------|-------|
+| **Disable Builtin Healthcheck** | Leave unchecked |
+| **TTY** | Leave unchecked |
+| **Stdin** | Leave unchecked |
 
-This section is **required** for LucidLink/FUSE to work.
+#### Devices
 
-| Setting | Value |
-|---------|-------|
-| **Privileged** | ✓ Enabled |
+Click **Add** to add the FUSE device:
 
-Under **Capabilities**, click **Add** for each:
-- `SYS_ADMIN`
-- `MKNOD`
-
-> **Warning**: Privileged mode grants full host device access. Only enable if you trust the container.
-
-### Storage Configuration
-
-Add the following Host Path mounts. Click **Add** under Storage for each:
-
-#### 1. FUSE Device (REQUIRED)
 | Field | Value |
 |-------|-------|
-| **Type** | Host Path |
-| **Host Path** | `/dev/fuse` |
-| **Mount Path** | `/dev/fuse` |
-| **Read Only** | No |
+| **Host Device** | `/dev/fuse` |
+| **Container Device** | `/dev/fuse` |
 
-#### 2. Local Data Directory
+---
+
+### Security Context Configuration
+
+This section is **CRITICAL** for LucidLink/FUSE to work.
+
+#### Privileged
 | Field | Value |
 |-------|-------|
-| **Type** | Host Path |
-| **Host Path** | `/mnt/pool/data/backup` (your data) |
-| **Mount Path** | `/data/local` |
-| **Read Only** | No |
+| **Privileged** | ✓ **Enabled** |
 
-#### 3. Config Persistence
-| Field | Value |
-|-------|-------|
-| **Type** | Host Path |
-| **Host Path** | `/mnt/pool/apps/lucidlink-sync/config` |
-| **Mount Path** | `/config` |
-| **Read Only** | No |
+> **Warning**: Privileged mode grants full host device access. Required for FUSE filesystem.
 
-#### 4. Log Persistence (Optional)
-| Field | Value |
-|-------|-------|
-| **Type** | Host Path |
-| **Host Path** | `/mnt/pool/apps/lucidlink-sync/logs` |
-| **Mount Path** | `/var/log/sync` |
-| **Read Only** | No |
+#### Capabilities
 
-#### 5. LucidLink Cache (Optional)
-| Field | Value |
-|-------|-------|
-| **Type** | Host Path |
-| **Host Path** | `/mnt/pool/apps/lucidlink-sync/cache` |
-| **Mount Path** | `/cache` |
-| **Read Only** | No |
+Click **Add** for each capability:
+
+| Capability |
+|------------|
+| `SYS_ADMIN` |
+| `MKNOD` |
+
+#### Custom User
+Leave unchecked (use container defaults)
+
+---
 
 ### Network Configuration
 
+#### Host Network
+Leave unchecked (we'll use port mapping)
+
 #### Ports
+
 Click **Add** under Ports:
 
 | Field | Value |
 |-------|-------|
 | **Container Port** | `8080` |
 | **Host Port** | `8080` |
-| **Protocol** | TCP |
+| **Protocol** | `TCP` |
 
-### Portal Configuration (Optional)
+#### Custom DNS Setup
+Leave all empty (use system defaults):
+- **Nameservers**: (none)
+- **Search Domains**: (none)
+- **DNS Options**: (none)
 
-To add a quick-access link in TrueNAS Apps UI:
+---
+
+### Portal Configuration
+
+Click **Add** to create a Web UI portal link:
 
 | Field | Value |
 |-------|-------|
 | **Name** | `Web UI` |
 | **Protocol** | `HTTP` |
-| **Host** | Leave as Node IP |
+| **Host** | `$node_ip` (or leave default) |
 | **Port** | `8080` |
 | **Path** | `/` |
 
-### Resources (Optional)
+This adds a clickable "Web UI" button in the Apps list.
+
+---
+
+### Storage Configuration
+
+Click **Add** under Storage for each mount:
+
+#### 1. Local Data Directory
+
+| Field | Value |
+|-------|-------|
+| **Type** | `Host Path` |
+| **Host Path** | `/mnt/pool/data/backup` (your data location) |
+| **Mount Path** | `/data/local` |
+| **Read Only** | Unchecked |
+
+#### 2. Config Persistence
+
+| Field | Value |
+|-------|-------|
+| **Type** | `Host Path` |
+| **Host Path** | `/mnt/pool/apps/lucidlink-sync/config` |
+| **Mount Path** | `/config` |
+| **Read Only** | Unchecked |
+
+#### 3. Log Persistence (Optional)
+
+| Field | Value |
+|-------|-------|
+| **Type** | `Host Path` |
+| **Host Path** | `/mnt/pool/apps/lucidlink-sync/logs` |
+| **Mount Path** | `/var/log/sync` |
+| **Read Only** | Unchecked |
+
+#### 4. LucidLink Cache (Optional but Recommended)
+
+| Field | Value |
+|-------|-------|
+| **Type** | `Host Path` |
+| **Host Path** | `/mnt/pool/apps/lucidlink-sync/cache` |
+| **Mount Path** | `/cache` |
+| **Read Only** | Unchecked |
+
+---
+
+### Labels Configuration
+
+Leave empty (optional, for container labeling)
+
+---
+
+### Resources Configuration
+
+#### Enable Resource Limits
+Optionally enable and configure:
 
 | Field | Value |
 |-------|-------|
 | **CPU** | `4` (4 cores) |
 | **Memory** | `4096` (MB) |
+
+#### GPU Configuration
+Leave unchecked (not required)
 
 ---
 
@@ -206,13 +282,14 @@ Monitor the deployment in the Apps list. The container should start within 30-60
 
 ## Step 5: Access the Web UI
 
-Once deployed, access the Web UI at:
+Once deployed, access the Web UI:
 
+**Option A**: Click the **Web UI** portal button in the Apps list
+
+**Option B**: Navigate directly to:
 ```
 http://YOUR_TRUENAS_IP:8080
 ```
-
-Or click the **Web UI** portal link in the Apps list (if configured).
 
 ---
 
@@ -262,6 +339,7 @@ docker run -d \
   --device /dev/fuse:/dev/fuse \
   --restart unless-stopped \
   -p 8080:8080 \
+  -e TZ="America/Chicago" \
   -e LUCIDLINK_FILESPACE="your-filespace.domain" \
   -e LUCIDLINK_USER="your-username" \
   -e LUCIDLINK_PASSWORD="your-password" \
@@ -314,8 +392,8 @@ Expected response:
 **Error**: `/dev/fuse not available`
 
 **Solution**:
-1. Verify `/dev/fuse` is added as Host Path storage mount
-2. Ensure **Privileged** mode is enabled
+1. Add `/dev/fuse` under **Devices** in Container Configuration
+2. Ensure **Privileged** mode is enabled in Security Context
 3. Add `SYS_ADMIN` and `MKNOD` capabilities
 
 ### Permission Denied on /dev/fuse
@@ -340,14 +418,14 @@ Expected response:
 **Symptoms**: Cannot reach `http://IP:8080`
 
 **Solution**:
-1. Verify port 8080 is mapped in Network Configuration
+1. Verify port 8080 is mapped in Network Configuration → Ports
 2. Check container is running: `docker ps | grep lucidlink`
 3. Check logs: `docker logs lucidlink-sync`
 4. Verify firewall allows port 8080
 
 ### Sync Jobs Disappear After Restart
 
-**Solution**: Ensure `/config` is mounted to persistent Host Path storage, not Tmpfs or ixVolume.
+**Solution**: Ensure `/config` is mounted to a Host Path (not Tmpfs or ixVolume).
 
 ### Container Keeps Restarting
 
@@ -358,8 +436,8 @@ docker logs lucidlink-sync
 
 Common causes:
 - Invalid LucidLink credentials
-- FUSE not available (check privileged mode)
-- Missing environment variables
+- FUSE not available (check Devices and Privileged mode)
+- Missing required environment variables
 
 ---
 
@@ -388,20 +466,13 @@ ssh admin@YOUR_TRUENAS_IP
 
 # Rebuild the image
 cd /tmp/lucidlink-build
-git pull  # or copy updated files
+git pull
 docker build -t lucidlink-sync:latest .
 
-# Stop and remove old container
-docker stop lucidlink-sync
-docker rm lucidlink-sync
-
-# Start new container (use same docker run command)
+# Restart via TrueNAS Apps UI:
+# 1. Stop the app
+# 2. Start the app (it will use the new image)
 ```
-
-Or via TrueNAS Apps UI:
-1. Stop the app
-2. Rebuild the image via SSH
-3. Start the app
 
 ---
 
