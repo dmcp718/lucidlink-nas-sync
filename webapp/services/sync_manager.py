@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import re
+import shutil
 import subprocess
 from datetime import datetime
 from typing import Optional
@@ -39,20 +40,39 @@ class SyncManager:
 
     async def load_jobs(self):
         """Load jobs from persistence file."""
-        if os.path.exists(settings.jobs_file):
+        backup_file = settings.jobs_file + ".backup"
+
+        # Try main file first, then backup
+        for filepath in [settings.jobs_file, backup_file]:
+            if not os.path.exists(filepath):
+                continue
             try:
-                async with aiofiles.open(settings.jobs_file, "r") as f:
-                    data = json.loads(await f.read())
+                async with aiofiles.open(filepath, "r") as f:
+                    content = await f.read()
+                    data = json.loads(content)
                     for job_data in data.get("jobs", []):
                         job = SyncJob(**job_data)
                         # Reset status on load (container restart)
                         job.status = JobStatus.IDLE
                         self.jobs[job.id] = job
+                    print(f"Loaded {len(self.jobs)} jobs from {filepath}")
+                    return  # Success
+            except json.JSONDecodeError as e:
+                print(f"JSON error loading {filepath}: {e}")
+                # Save corrupted file for debugging
+                if filepath == settings.jobs_file:
+                    corrupt_file = settings.jobs_file + ".corrupted"
+                    try:
+                        async with aiofiles.open(corrupt_file, "w") as f:
+                            await f.write(content)
+                        print(f"Saved corrupted file to {corrupt_file}")
+                    except Exception:
+                        pass
             except Exception as e:
-                print(f"Error loading jobs: {e}")
+                print(f"Error loading {filepath}: {e}")
 
     async def save_jobs(self):
-        """Persist jobs to file."""
+        """Persist jobs to file with atomic write and backup."""
         # Ensure config directory exists
         os.makedirs(os.path.dirname(settings.jobs_file), exist_ok=True)
 
@@ -60,8 +80,21 @@ class SyncManager:
             data = {
                 "jobs": [job.model_dump() for job in self.jobs.values()]
             }
-            async with aiofiles.open(settings.jobs_file, "w") as f:
-                await f.write(json.dumps(data, indent=2, default=str))
+            json_content = json.dumps(data, indent=2, default=str)
+
+            # Create backup of existing file
+            if os.path.exists(settings.jobs_file):
+                backup_file = settings.jobs_file + ".backup"
+                try:
+                    shutil.copy2(settings.jobs_file, backup_file)
+                except Exception as e:
+                    print(f"Warning: Could not create backup: {e}")
+
+            # Atomic write: write to temp file, then rename
+            temp_file = settings.jobs_file + ".tmp"
+            async with aiofiles.open(temp_file, "w") as f:
+                await f.write(json_content)
+            os.replace(temp_file, settings.jobs_file)
         except Exception as e:
             print(f"Error saving jobs: {e}")
 

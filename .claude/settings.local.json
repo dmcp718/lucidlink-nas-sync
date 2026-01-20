@@ -22,7 +22,18 @@
       "Bash(git remote set-url:*)",
       "Bash(git fetch:*)",
       "Bash(git rebase:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(k3s kubectl:*)",
+      "Bash(cat:*)",
+      "Bash(docker build:*)",
+      "Bash(xargs:*)",
+      "Bash(docker start:*)",
+      "Bash(midclt call:*)",
+      "Bash(docker cp:*)",
+      "Bash(grep:*)",
+      "Bash(git tag:*)",
+      "Bash(~/.git-credentials)",
+      "Bash(docker inspect:*)"
     ]
   }
 }
