@@ -115,6 +115,54 @@ class SyncManager:
             except Exception as e:
                 print(f"Error in progress callback: {e}")
 
+    def _check_mount_health(self, path: str) -> tuple[bool, str]:
+        """Check if a mount point is healthy and accessible.
+
+        Returns (is_healthy, error_message).
+        """
+        try:
+            # Quick check: can we stat the path?
+            if not os.path.exists(path):
+                return False, f"Path does not exist: {path}"
+
+            # Try to list the directory (this will fail fast if mount is dead)
+            # Use a timeout to prevent hanging on stale mounts
+            import signal
+
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Mount access timed out")
+
+            # Set 5 second timeout for mount check
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(5)
+
+            try:
+                # Try to access the mount - this will error quickly if endpoint is disconnected
+                os.listdir(path)
+                signal.alarm(0)  # Cancel the alarm
+                return True, ""
+            except OSError as e:
+                signal.alarm(0)
+                # Error 107 = Transport endpoint is not connected
+                if e.errno == 107:
+                    return False, "LucidLink mount disconnected (Transport endpoint not connected)"
+                # Error 116 = Stale file handle
+                elif e.errno == 116:
+                    return False, "LucidLink mount stale (Stale file handle)"
+                else:
+                    return False, f"Mount error: {e}"
+            except TimeoutError:
+                return False, "LucidLink mount not responding (timeout)"
+            finally:
+                signal.signal(signal.SIGALRM, old_handler)
+
+        except Exception as e:
+            return False, f"Health check failed: {e}"
+
+    def _check_lucidlink_healthy(self) -> tuple[bool, str]:
+        """Check if LucidLink mount is healthy."""
+        return self._check_mount_health(settings.lucidlink_mount_point)
+
     # CRUD Operations
     async def create_job(self, job_data: SyncJobCreate) -> SyncJob:
         """Create a new sync job."""
@@ -166,6 +214,16 @@ class SyncManager:
 
         if job_id in self.running_processes:
             return False, "Job is already running"
+
+        # Check LucidLink mount health before starting
+        is_healthy, error_msg = self._check_lucidlink_healthy()
+        if not is_healthy:
+            return False, f"Cannot start job: {error_msg}"
+
+        # Also verify source path is accessible
+        source_healthy, source_error = self._check_mount_health(job.source_path)
+        if not source_healthy:
+            return False, f"Source path not accessible: {source_error}"
 
         # Initialize progress
         progress = SyncProgress(
@@ -627,6 +685,16 @@ class SyncManager:
                 worker.current_file = None
                 break
 
+            # Check mount health before each item to fail fast if LucidLink died
+            is_healthy, health_error = self._check_lucidlink_healthy()
+            if not is_healthy:
+                error_lines.append(f"[Worker {worker_id}] Mount unhealthy: {health_error}")
+                # Signal stop for all workers
+                self.stop_requested[job_id] = True
+                worker.status = "failed"
+                worker.current_file = None
+                break
+
             item_source = os.path.join(source, item_name)
             worker.current_file = item_name
 
@@ -670,6 +738,16 @@ class SyncManager:
                             # Check for errors
                             if line_text.startswith("rsync:") or line_text.startswith("rsync error:"):
                                 error_lines.append(f"[Worker {worker_id}] {line_text}")
+
+                                # Check for fatal mount errors - stop all workers immediately
+                                if "Transport endpoint is not connected" in line_text or \
+                                   "Stale file handle" in line_text:
+                                    print(f"[Worker {worker_id}] FATAL: Mount disconnected, stopping all workers")
+                                    self.stop_requested[job_id] = True
+                                    process.terminate()
+                                    worker.status = "failed"
+                                    break
+
                                 continue
 
                             # Parse --info=progress2 output
