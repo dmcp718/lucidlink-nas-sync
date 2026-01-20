@@ -119,43 +119,26 @@ class SyncManager:
         """Check if a mount point is healthy and accessible.
 
         Returns (is_healthy, error_message).
+        Disconnected FUSE mounts return errno 107 immediately, no timeout needed.
         """
         try:
             # Quick check: can we stat the path?
             if not os.path.exists(path):
                 return False, f"Path does not exist: {path}"
 
-            # Try to list the directory (this will fail fast if mount is dead)
-            # Use a timeout to prevent hanging on stale mounts
-            import signal
+            # Try to list the directory - disconnected mounts fail immediately with errno 107
+            os.listdir(path)
+            return True, ""
 
-            def timeout_handler(signum, frame):
-                raise TimeoutError("Mount access timed out")
-
-            # Set 5 second timeout for mount check
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(5)
-
-            try:
-                # Try to access the mount - this will error quickly if endpoint is disconnected
-                os.listdir(path)
-                signal.alarm(0)  # Cancel the alarm
-                return True, ""
-            except OSError as e:
-                signal.alarm(0)
-                # Error 107 = Transport endpoint is not connected
-                if e.errno == 107:
-                    return False, "LucidLink mount disconnected (Transport endpoint not connected)"
-                # Error 116 = Stale file handle
-                elif e.errno == 116:
-                    return False, "LucidLink mount stale (Stale file handle)"
-                else:
-                    return False, f"Mount error: {e}"
-            except TimeoutError:
-                return False, "LucidLink mount not responding (timeout)"
-            finally:
-                signal.signal(signal.SIGALRM, old_handler)
-
+        except OSError as e:
+            # Error 107 = Transport endpoint is not connected
+            if e.errno == 107:
+                return False, "LucidLink mount disconnected (Transport endpoint not connected)"
+            # Error 116 = Stale file handle
+            elif e.errno == 116:
+                return False, "LucidLink mount stale (Stale file handle)"
+            else:
+                return False, f"Mount error: {e}"
         except Exception as e:
             return False, f"Health check failed: {e}"
 
@@ -951,7 +934,13 @@ class SyncManager:
             )
 
             # Update final status
-            if not all_errors:
+            # Check if job was stopped by user (stop_job already set STOPPED status)
+            was_stopped = self.stop_requested.get(job_id, False)
+
+            if was_stopped:
+                # User requested stop - status already set by stop_job(), don't overwrite
+                pass
+            elif not all_errors:
                 job.status = JobStatus.COMPLETED
                 job.last_run_status = JobStatus.COMPLETED
                 job.last_run_message = f"Completed: {stats.files_synced} files in {duration:.1f}s ({num_workers} workers)"

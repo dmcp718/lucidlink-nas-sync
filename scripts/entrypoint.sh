@@ -2,6 +2,7 @@
 set -e
 
 LOG_FILE="/var/log/sync/container.log"
+CRASH_MARKER="/config/.crash_marker"
 WEBUI_PID=""
 
 log() {
@@ -9,6 +10,26 @@ log() {
 }
 
 log "Starting LucidLink Sync Container"
+
+# Check for crash marker from previous run
+if [ -f "$CRASH_MARKER" ]; then
+    log "WARNING: Previous run did not shut down cleanly (crash marker found)"
+    log "Clearing LucidLink data cache to recover..."
+
+    # Surgical cleanup - only clear data cache, preserve metadata
+    for fs_dir in /cache/*/; do
+        if [ -d "${fs_dir}cache" ]; then
+            log "  Clearing ${fs_dir}cache/"
+            rm -rf "${fs_dir}cache"/* 2>/dev/null || true
+        fi
+    done
+
+    rm -f "$CRASH_MARKER"
+    log "Cache cleared, continuing startup..."
+fi
+
+# Create crash marker (will be removed on clean shutdown)
+touch "$CRASH_MARKER"
 
 # Check for required environment variables
 if [ -z "$LUCIDLINK_FILESPACE" ]; then
@@ -54,7 +75,6 @@ log "Starting LucidLink daemon..."
 if pgrep -x "lucid" > /dev/null; then
     log "LucidLink daemon already running"
 else
-    # Start daemon in background with FUSE allow-other and cache path
     lucid daemon \
         --fs "$LUCIDLINK_FILESPACE" \
         --user "$LUCIDLINK_USER" \
@@ -86,7 +106,7 @@ done
 if ! is_mounted; then
     log "ERROR: Filespace failed to mount within $MAX_WAIT seconds"
     log "Checking LucidLink status..."
-    lucid status || true
+    lucid status 2>&1 | tee -a "$LOG_FILE" || true
     exit 1
 fi
 
@@ -121,7 +141,9 @@ cleanup() {
     # Stop LucidLink
     lucid exit || true
 
-    log "Container stopped"
+    # Remove crash marker on clean shutdown
+    rm -f "$CRASH_MARKER"
+    log "Container stopped cleanly"
     exit 0
 }
 

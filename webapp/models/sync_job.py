@@ -1,12 +1,22 @@
 """
 Pydantic models for sync jobs and related data.
 """
+import os
 from datetime import datetime
 from enum import Enum
 from typing import Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+
+
+def get_default_parallel_jobs() -> int:
+    """Get default parallel jobs from environment variable."""
+    try:
+        value = int(os.environ.get("PARALLEL_JOBS", "4"))
+        return max(1, min(32, value))  # Clamp to valid range
+    except ValueError:
+        return 4
 
 
 class JobStatus(str, Enum):
@@ -65,7 +75,7 @@ class SyncJobBase(BaseModel):
     dest_path: str = Field(..., description="Destination directory path")
     direction: SyncDirection = SyncDirection.LOCAL_TO_FILESPACE
     interval: int = Field(default=300, ge=0, description="Sync interval in seconds (0 for manual)")
-    parallel_jobs: int = Field(default=4, ge=1, le=32, description="Number of parallel rsync jobs")
+    parallel_jobs: int = Field(default_factory=get_default_parallel_jobs, ge=1, le=32, description="Number of parallel rsync jobs")
     rsync_options: str = Field(default="-avz --progress", description="Rsync command options")
     exclude_patterns: list[str] = Field(default_factory=list, description="Patterns to exclude")
     enabled: bool = Field(default=True, description="Whether the job is enabled")
