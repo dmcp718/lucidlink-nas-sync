@@ -1,16 +1,16 @@
 {% if result.error %}
-<div class="text-red-400 p-4 bg-red-900/20 rounded">
+<div class="text-ll-orange p-4 bg-ll-orange/10 rounded border border-ll-orange/30">
     {{ result.error }}
 </div>
 {% else %}
 <div class="text-sm">
-    <div class="flex items-center space-x-2 mb-3 text-gray-400">
-        <span class="font-mono text-xs bg-gray-700 px-2 py-1 rounded">{{ result.path or '/' }}</span>
+    <div class="flex items-center space-x-2 mb-3 text-ll-sand/60">
+        <span class="font-mono text-xs bg-white/10 px-2 py-1 rounded">{{ result.path or '/' }}</span>
     </div>
 
     {% if result.parent is not none %}
     <div onclick="loadPickerBrowser('{{ result.parent }}')"
-         class="flex items-center space-x-2 p-2 hover:bg-gray-700 rounded cursor-pointer text-gray-400">
+         class="flex items-center space-x-2 p-2 hover:bg-white/5 rounded cursor-pointer text-ll-sand/60">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"></path>
         </svg>
@@ -22,8 +22,8 @@
         {% for item in result.items %}
         <div onclick="selectPickerFolder('{{ item.path }}', this)"
              ondblclick="loadPickerBrowser('{{ item.path }}')"
-             class="picker-item flex items-center space-x-2 p-2 hover:bg-gray-700 rounded cursor-pointer">
-            <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+             class="picker-item flex items-center space-x-2 p-2 hover:bg-white/5 rounded cursor-pointer">
+            <svg class="w-4 h-4 text-ll-neon" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path>
             </svg>
             <span class="truncate">{{ item.name }}</span>
@@ -31,7 +31,7 @@
         {% endfor %}
 
         {% if not result.items %}
-        <div class="text-gray-500 text-center py-4">
+        <div class="text-ll-sand/40 text-center py-4">
             No folders found
         </div>
         {% endif %}

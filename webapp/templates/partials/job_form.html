@@ -1,7 +1,7 @@
 <div class="p-6">
     <div class="flex justify-between items-center mb-6">
-        <h2 class="text-xl font-semibold">{% if is_new %}Create New Job{% else %}Edit Job{% endif %}</h2>
-        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-200">
+        <h2 class="text-xl font-semibold">{% if is_new %}Create new job{% else %}Edit job{% endif %}</h2>
+        <button onclick="closeModal()" class="text-ll-sand/60 hover:text-white">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -10,45 +10,45 @@
 
     <form id="job-form" class="space-y-4">
         <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">Job Name</label>
+            <label class="block text-sm font-medium text-ll-sand/80 mb-1">Job name</label>
             <input
                 type="text"
                 id="job-name"
                 value="{{ job.name if job else '' }}"
                 required
-                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
-                placeholder="My Sync Job">
+                class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-ll-neon text-white placeholder-ll-sand/40"
+                placeholder="My sync job">
         </div>
 
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-300 mb-1">Source Path</label>
+                <label class="block text-sm font-medium text-ll-sand/80 mb-1">Source path</label>
                 <div class="flex space-x-2">
                     <input
                         type="text"
                         id="job-source"
                         value="{{ job.source_path if job else '/data/local' }}"
                         required
-                        class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                        class="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-ll-neon text-white placeholder-ll-sand/40"
                         placeholder="/data/local/folder">
                     <button type="button" onclick="openPathPicker('source', 'local')"
-                            class="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm">
+                            class="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm">
                         Browse
                     </button>
                 </div>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-300 mb-1">Destination Path</label>
+                <label class="block text-sm font-medium text-ll-sand/80 mb-1">Destination path</label>
                 <div class="flex space-x-2">
                     <input
                         type="text"
                         id="job-dest"
                         value="{{ job.dest_path if job else '/data/filespace' }}"
                         required
-                        class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                        class="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-ll-neon text-white placeholder-ll-sand/40"
                         placeholder="/data/filespace/folder">
                     <button type="button" onclick="openPathPicker('dest', 'filespace')"
-                            class="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm">
+                            class="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm">
                         Browse
                     </button>
                 </div>
@@ -56,56 +56,56 @@
         </div>
 
         <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">Sync Direction</label>
+            <label class="block text-sm font-medium text-ll-sand/80 mb-1">Sync direction</label>
             <select
                 id="job-direction"
-                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
-                <option value="local-to-filespace" {% if job and job.direction == 'local-to-filespace' %}selected{% endif %}>Local to Filespace (Upload)</option>
-                <option value="filespace-to-local" {% if job and job.direction == 'filespace-to-local' %}selected{% endif %}>Filespace to Local (Download)</option>
+                class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-ll-neon text-white">
+                <option value="local-to-filespace" {% if job and job.direction == 'local-to-filespace' %}selected{% endif %}>Local to filespace (upload)</option>
+                <option value="filespace-to-local" {% if job and job.direction == 'filespace-to-local' %}selected{% endif %}>Filespace to local (download)</option>
                 <option value="bidirectional" {% if job and job.direction == 'bidirectional' %}selected{% endif %}>Bidirectional</option>
             </select>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-300 mb-1">Sync Interval (seconds)</label>
+                <label class="block text-sm font-medium text-ll-sand/80 mb-1">Sync interval (seconds)</label>
                 <input
                     type="number"
                     id="job-interval"
                     value="{{ job.interval if job else 300 }}"
                     min="0"
-                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                    class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-ll-neon text-white placeholder-ll-sand/40"
                     placeholder="300">
-                <p class="text-xs text-gray-500 mt-1">Set to 0 for manual sync only</p>
+                <p class="text-xs text-ll-sand/40 mt-1">Set to 0 for manual sync only</p>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-300 mb-1">Parallel Jobs</label>
+                <label class="block text-sm font-medium text-ll-sand/80 mb-1">Parallel jobs</label>
                 <input
                     type="number"
                     id="job-parallel"
                     value="{{ job.parallel_jobs if job else 4 }}"
                     min="1"
                     max="32"
-                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                    class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-ll-neon text-white placeholder-ll-sand/40">
             </div>
         </div>
 
         <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">Rsync Options</label>
+            <label class="block text-sm font-medium text-ll-sand/80 mb-1">Rsync options</label>
             <input
                 type="text"
                 id="job-rsync-options"
                 value="{{ job.rsync_options if job else '-avz --progress' }}"
-                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-ll-neon text-white placeholder-ll-sand/40"
                 placeholder="-avz --progress">
         </div>
 
         <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">Exclude Patterns (one per line)</label>
+            <label class="block text-sm font-medium text-ll-sand/80 mb-1">Exclude patterns (one per line)</label>
             <textarea
                 id="job-excludes"
                 rows="3"
-                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-ll-neon text-white placeholder-ll-sand/40"
                 placeholder="*.tmp&#10;.DS_Store&#10;Thumbs.db">{% if job and job.exclude_patterns %}{{ job.exclude_patterns | join('\n') }}{% endif %}</textarea>
         </div>
 
@@ -114,23 +114,23 @@
                 type="checkbox"
                 id="job-enabled"
                 {% if not job or job.enabled %}checked{% endif %}
-                class="w-4 h-4 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
-            <label for="job-enabled" class="ml-2 text-sm text-gray-300">Enabled</label>
+                class="w-4 h-4 bg-white/5 border-white/10 rounded focus:ring-ll-neon accent-ll-neon">
+            <label for="job-enabled" class="ml-2 text-sm text-ll-sand/80">Enabled</label>
         </div>
 
-        <div id="form-error" class="hidden text-red-400 text-sm"></div>
+        <div id="form-error" class="hidden text-ll-orange text-sm"></div>
 
-        <div class="flex justify-end space-x-3 pt-4 border-t border-gray-700">
+        <div class="flex justify-end space-x-3 pt-4 border-t border-white/10">
             <button
                 type="button"
                 onclick="closeModal()"
-                class="px-4 py-2 text-gray-400 hover:text-gray-200">
+                class="px-4 py-2 text-ll-sand/60 hover:text-white">
                 Cancel
             </button>
             <button
                 type="submit"
-                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg">
-                {% if is_new %}Create Job{% else %}Save Changes{% endif %}
+                class="px-4 py-2 bg-ll-neon hover:bg-ll-neon/90 text-ll-charcoal font-medium rounded-lg">
+                {% if is_new %}Create job{% else %}Save changes{% endif %}
             </button>
         </div>
     </form>
@@ -212,11 +212,11 @@ function updatePickerLocationButtons() {
     const filespaceBtn = document.getElementById('picker-filespace-btn');
 
     localBtn.className = pickerLocation === 'local'
-        ? 'px-3 py-1 bg-blue-600 rounded-lg text-sm'
-        : 'px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm';
+        ? 'px-3 py-1 bg-ll-neon text-ll-charcoal font-medium rounded-lg text-sm'
+        : 'px-3 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-sm';
     filespaceBtn.className = pickerLocation === 'filespace'
-        ? 'px-3 py-1 bg-blue-600 rounded-lg text-sm'
-        : 'px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm';
+        ? 'px-3 py-1 bg-ll-neon text-ll-charcoal font-medium rounded-lg text-sm'
+        : 'px-3 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-sm';
 }
 
 function loadPickerBrowser(path) {
@@ -235,13 +235,13 @@ function selectPickerFolder(path, element) {
     // Clear previous selection and highlight new one
     clearPickerSelection();
     if (element) {
-        element.classList.add('bg-blue-900');
+        element.classList.add('bg-ll-neon/20');
     }
 }
 
 function clearPickerSelection() {
     const items = document.querySelectorAll('#picker-browser-content .picker-item');
-    items.forEach(item => item.classList.remove('bg-blue-900'));
+    items.forEach(item => item.classList.remove('bg-ll-neon/20'));
 }
 
 function confirmPathSelection() {
@@ -254,11 +254,11 @@ function confirmPathSelection() {
 </script>
 
 <!-- Path Picker Modal -->
-<div id="path-picker-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-gray-800 rounded-lg p-4 max-w-lg w-full mx-4 shadow-xl">
+<div id="path-picker-modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-ll-charcoal border border-white/10 rounded-lg p-4 max-w-lg w-full mx-4 shadow-xl">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-semibold">Select <span id="picker-target">Source</span> Path</h3>
-            <button onclick="closePathPicker()" class="text-gray-400 hover:text-gray-200">
+            <h3 class="text-lg font-semibold">Select <span id="picker-target">source</span> path</h3>
+            <button onclick="closePathPicker()" class="text-ll-sand/60 hover:text-white">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
@@ -267,28 +267,28 @@ function confirmPathSelection() {
 
         <div class="flex space-x-2 mb-4">
             <button type="button" onclick="switchPickerLocation('local')" id="picker-local-btn"
-                    class="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm">
+                    class="px-3 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-sm">
                 Local
             </button>
             <button type="button" onclick="switchPickerLocation('filespace')" id="picker-filespace-btn"
-                    class="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm">
+                    class="px-3 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-sm">
                 Filespace
             </button>
         </div>
 
-        <div id="picker-browser-content" class="bg-gray-900 rounded-lg p-2 min-h-[200px] max-h-[300px] overflow-y-auto">
+        <div id="picker-browser-content" class="bg-black/30 border border-white/10 rounded-lg p-2 min-h-[200px] max-h-[300px] overflow-y-auto">
             <!-- Browser content loads here via HTMX -->
         </div>
 
-        <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-700">
-            <span id="picker-selected-path" class="text-sm text-gray-400 font-mono truncate max-w-[60%]">/data/local</span>
+        <div class="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
+            <span id="picker-selected-path" class="text-sm text-ll-sand/60 font-mono truncate max-w-[60%]">/data/local</span>
             <div class="space-x-2">
                 <button type="button" onclick="closePathPicker()"
-                        class="px-3 py-2 text-gray-400 hover:text-gray-200 text-sm">
+                        class="px-3 py-2 text-ll-sand/60 hover:text-white text-sm">
                     Cancel
                 </button>
                 <button type="button" onclick="confirmPathSelection()"
-                        class="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm">
+                        class="px-3 py-2 bg-ll-neon hover:bg-ll-neon/90 text-ll-charcoal font-medium rounded-lg text-sm">
                     Select
                 </button>
             </div>

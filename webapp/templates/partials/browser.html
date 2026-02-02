@@ -1,11 +1,11 @@
 {% if result.error %}
-<div class="text-red-400 p-4 bg-red-900/20 rounded">
+<div class="text-ll-orange p-4 bg-ll-orange/10 rounded border border-ll-orange/30">
     {{ result.error }}
 </div>
 {% else %}
 <div class="text-sm">
-    <div class="flex items-center space-x-2 mb-3 text-gray-400">
-        <span class="font-mono text-xs bg-gray-700 px-2 py-1 rounded">{{ result.path or '/' }}</span>
+    <div class="flex items-center space-x-2 mb-3 text-ll-sand/60">
+        <span class="font-mono text-xs bg-white/10 px-2 py-1 rounded">{{ result.path or '/' }}</span>
     </div>
 
     {% if result.parent is not none %}
@@ -13,7 +13,7 @@
         hx-get="/partials/browser/{{ location }}?path={{ result.parent }}"
         hx-target="#browser-{{ location }}"
         hx-swap="innerHTML"
-        class="flex items-center space-x-2 p-2 hover:bg-gray-700 rounded cursor-pointer text-gray-400">
+        class="flex items-center space-x-2 p-2 hover:bg-white/5 rounded cursor-pointer text-ll-sand/60">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"></path>
         </svg>
@@ -28,21 +28,21 @@
             hx-get="/partials/browser/{{ location }}?path={{ item.path }}"
             hx-target="#browser-{{ location }}"
             hx-swap="innerHTML"
-            class="flex items-center space-x-2 p-2 hover:bg-gray-700 rounded cursor-pointer">
-            <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+            class="flex items-center space-x-2 p-2 hover:bg-white/5 rounded cursor-pointer">
+            <svg class="w-4 h-4 text-ll-neon" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path>
             </svg>
             <span class="truncate">{{ item.name }}</span>
         </div>
         {% else %}
-        <div class="flex items-center justify-between p-2 hover:bg-gray-700 rounded">
+        <div class="flex items-center justify-between p-2 hover:bg-white/5 rounded">
             <div class="flex items-center space-x-2">
-                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-ll-sand/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                 </svg>
                 <span class="truncate">{{ item.name }}</span>
             </div>
-            <span class="text-xs text-gray-500">
+            <span class="text-xs text-ll-sand/40">
                 {% if item.size < 1024 %}
                 {{ item.size }} B
                 {% elif item.size < 1024 * 1024 %}
@@ -58,7 +58,7 @@
         {% endfor %}
 
         {% if not result.items %}
-        <div class="text-gray-500 text-center py-4">
+        <div class="text-ll-sand/40 text-center py-4">
             Empty directory
         </div>
         {% endif %}

@@ -3,11 +3,11 @@
         <span class="status-dot {% if status.lucidlink_connected %}status-connected{% else %}status-disconnected{% endif %}"></span>
         <span>LucidLink: {% if status.lucidlink_connected %}Connected{% else %}Disconnected{% endif %}</span>
     </div>
-    <div class="text-gray-400">|</div>
+    <div class="text-ll-sand/40">|</div>
     <div>
-        <span class="text-gray-400">Jobs:</span>
-        <span class="text-blue-400">{{ status.jobs_running }} running</span>
-        <span class="text-gray-500">/</span>
+        <span class="text-ll-sand/60">Jobs:</span>
+        <span class="text-ll-neon">{{ status.jobs_running }} running</span>
+        <span class="text-ll-sand/40">/</span>
         <span>{{ status.jobs_total }} total</span>
     </div>
 </div>

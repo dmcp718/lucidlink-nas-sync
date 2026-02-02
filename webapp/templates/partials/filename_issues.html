@@ -1,46 +1,46 @@
 {% if issues %}
-<div class="bg-gray-800 rounded-lg overflow-hidden">
+<div class="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
     <!-- Summary -->
-    <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+    <div class="p-4 border-b border-white/10 flex items-center justify-between">
         <div class="flex space-x-6 text-sm">
-            <span class="text-gray-400">Total: <span class="text-white font-medium">{{ issues|length }}</span></span>
-            <span class="text-yellow-400">Pending: <span class="font-medium">{{ issues|selectattr('status', 'equalto', 'pending')|list|length }}</span></span>
-            <span class="text-green-400">Renamed: <span class="font-medium">{{ issues|selectattr('status', 'equalto', 'renamed')|list|length }}</span></span>
-            <span class="text-gray-500">Skipped: <span class="font-medium">{{ issues|selectattr('status', 'equalto', 'skipped')|list|length }}</span></span>
-            <span class="text-red-400">Failed: <span class="font-medium">{{ issues|selectattr('status', 'equalto', 'failed')|list|length }}</span></span>
+            <span class="text-ll-sand/60">Total: <span class="text-white font-medium">{{ issues|length }}</span></span>
+            <span class="text-ll-orange">Pending: <span class="font-medium">{{ issues|selectattr('status', 'equalto', 'pending')|list|length }}</span></span>
+            <span class="text-ll-neon">Renamed: <span class="font-medium">{{ issues|selectattr('status', 'equalto', 'renamed')|list|length }}</span></span>
+            <span class="text-ll-sand/40">Skipped: <span class="font-medium">{{ issues|selectattr('status', 'equalto', 'skipped')|list|length }}</span></span>
+            <span class="text-ll-orange">Failed: <span class="font-medium">{{ issues|selectattr('status', 'equalto', 'failed')|list|length }}</span></span>
         </div>
     </div>
 
     <!-- Issues Table -->
     <table class="w-full">
-        <thead class="bg-gray-700">
+        <thead class="bg-white/5">
             <tr>
                 <th class="px-4 py-3 text-left text-sm font-medium">Status</th>
                 <th class="px-4 py-3 text-left text-sm font-medium">File/Directory</th>
                 <th class="px-4 py-3 text-left text-sm font-medium">Issue</th>
-                <th class="px-4 py-3 text-left text-sm font-medium">Suggested Name</th>
+                <th class="px-4 py-3 text-left text-sm font-medium">Suggested name</th>
                 <th class="px-4 py-3 text-left text-sm font-medium">Job</th>
                 <th class="px-4 py-3 text-right text-sm font-medium">Actions</th>
             </tr>
         </thead>
-        <tbody class="divide-y divide-gray-700">
+        <tbody class="divide-y divide-white/10">
             {% for issue in issues %}
-            <tr class="hover:bg-gray-750">
+            <tr class="hover:bg-white/5">
                 <td class="px-4 py-3">
                     {% if issue.status == 'pending' %}
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-900 text-yellow-300">
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-ll-orange/20 text-ll-orange">
                         Pending
                     </span>
                     {% elif issue.status == 'renamed' %}
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-900 text-green-300">
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-ll-neon/20 text-ll-neon">
                         Renamed
                     </span>
                     {% elif issue.status == 'skipped' %}
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-700 text-gray-400">
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-white/10 text-ll-sand/60">
                         Skipped
                     </span>
                     {% elif issue.status == 'failed' %}
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-900 text-red-300">
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-ll-orange/20 text-ll-orange">
                         Failed
                     </span>
                     {% endif %}
@@ -48,47 +48,47 @@
                 <td class="px-4 py-3">
                     <div class="flex items-center space-x-2">
                         {% if issue.is_dir %}
-                        <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <svg class="w-4 h-4 text-ll-neon" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path>
                         </svg>
                         {% else %}
-                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4 text-ll-sand/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
                         {% endif %}
                         <div>
                             <div class="font-medium text-sm truncate max-w-xs" title="{{ issue.filename }}">{{ issue.filename }}</div>
-                            <div class="text-xs text-gray-500 truncate max-w-xs" title="{{ issue.relative_path }}">{{ issue.relative_path }}</div>
+                            <div class="text-xs text-ll-sand/40 truncate max-w-xs" title="{{ issue.relative_path }}">{{ issue.relative_path }}</div>
                         </div>
                     </div>
                 </td>
                 <td class="px-4 py-3 text-sm">
-                    <span class="text-red-400">{{ issue.issue_type }}</span>
+                    <span class="text-ll-orange">{{ issue.issue_type }}</span>
                     {% if issue.issue_char %}
-                    <code class="ml-1 px-1 bg-gray-700 rounded text-xs">{{ issue.issue_char | e }}</code>
+                    <code class="ml-1 px-1 bg-white/10 rounded text-xs">{{ issue.issue_char | e }}</code>
                     {% endif %}
                 </td>
                 <td class="px-4 py-3 text-sm">
                     {% if issue.suggested_name %}
-                    <span class="text-green-400 font-mono text-xs">{{ issue.suggested_name }}</span>
+                    <span class="text-ll-neon font-mono text-xs">{{ issue.suggested_name }}</span>
                     {% else %}
-                    <span class="text-gray-500">-</span>
+                    <span class="text-ll-sand/40">-</span>
                     {% endif %}
                 </td>
-                <td class="px-4 py-3 text-sm text-gray-400">
+                <td class="px-4 py-3 text-sm text-ll-sand/50">
                     {{ issue.job_name }}
                 </td>
                 <td class="px-4 py-3 text-right">
                     {% if issue.status == 'pending' %}
                     <div class="flex items-center justify-end space-x-2">
                         <button onclick="renameIssue('{{ issue.id }}')"
-                                class="p-1 text-green-400 hover:bg-gray-700 rounded" title="Rename">
+                                class="p-1 text-ll-neon hover:bg-white/10 rounded" title="Rename">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                             </svg>
                         </button>
                         <button onclick="skipIssue('{{ issue.id }}')"
-                                class="p-1 text-gray-400 hover:bg-gray-700 rounded" title="Skip">
+                                class="p-1 text-ll-sand/50 hover:bg-white/10 rounded" title="Skip">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                             </svg>
@@ -102,11 +102,11 @@
     </table>
 </div>
 {% else %}
-<div class="bg-gray-800 rounded-lg p-12 text-center">
-    <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<div class="bg-white/5 border border-white/10 rounded-lg p-12 text-center">
+    <svg class="w-16 h-16 mx-auto text-ll-neon/50 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
     </svg>
-    <h3 class="text-lg font-medium text-gray-400 mb-2">No filename issues found</h3>
-    <p class="text-gray-500">All files have compatible names. Issues are detected during sync job pre-flight checks.</p>
+    <h3 class="text-lg font-medium text-ll-sand/60 mb-2">No filename issues found</h3>
+    <p class="text-ll-sand/40">All files have compatible names. Issues are detected during sync job pre-flight checks.</p>
 </div>
 {% endif %}
